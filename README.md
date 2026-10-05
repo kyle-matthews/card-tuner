@@ -17,7 +17,7 @@ It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or solde
 
 Pitch detection uses the **YIN** algorithm, which runs on the raw audio waveform. Tiny MEMS mics barely pick up a bass's fundamental, but the waveform still repeats at the fundamental's period, so YIN finds the right note where a simple FFT peak would read an octave high.
 
-- 16 kHz sampling, 2048-sample analysis window, parabolic interpolation for sub-cent precision
+- 16 kHz sampling, a ~107 ms analysis frame (two of the longest periods searched), and sub-sample interpolation measured across several periods at once for sub-cent precision
 - Noise gate, confidence threshold, median smoothing and an octave-jump guard
 - Guitar/bass mode narrows the search range for speed and stability
 
@@ -33,6 +33,31 @@ Pitch detection uses the **YIN** algorithm, which runs on the raw audio waveform
 4. Run **PlatformIO: Upload** (or `pio run -t upload`), then **PlatformIO: Serial Monitor** (115200 baud).
 
 If upload fails, put the device in download mode: hold **G0** while plugging in USB.
+
+## Testing
+
+The pitch detector has no hardware dependencies, so it is tested on the PC against synthetic tones and real recordings. This needs a host C++ compiler on PATH (for example `winget install BrechtSanders.WinLibs.POSIX.UCRT`).
+
+```
+pio test -e native
+```
+
+### Recording test audio
+
+The M1 firmware can stream 3 s of mic audio to the PC. With the device connected (and the serial monitor closed):
+
+```
+~/.platformio/penv/Scripts/python.exe tools/capture.py COM5 guitar_low_e --wait
+```
+
+Pluck the string, then press `r` on the Cardputer. The recording is saved to `recordings/guitar_low_e.wav`.
+
+To see what the detector makes of a recording, frame by frame:
+
+```
+g++ -O2 -std=c++17 -Isrc tools/pitch_scan.cpp src/pitch.cpp -o .pio/pitch_scan
+.pio/pitch_scan recordings/speaker_bass_e.wav
+```
 
 ## Controls (planned)
 
@@ -59,13 +84,17 @@ src/
   settings.*        persistent settings (NVS)
 test/
   test_pitch/       native unit tests on synthetic and recorded signals
+tools/
+  capture.py        save a mic recording from the device as WAV
+  pitch_scan.cpp    print detector output frame by frame for a WAV
+recordings/         test audio captured on the device
 ```
 
 ## Roadmap
 
 - [x] **M0** Scaffold: text on screen, key presses register, beep
 - [x] **M1** Mic level meter and a raw sample dump (bass strings recorded through a speaker; real bass and guitar recordings still to do)
-- [ ] **M2** YIN pitch detection passing native unit tests (41 Hz, 82 Hz, 330 Hz, no octave errors)
+- [x] **M2** YIN pitch detection passing native unit tests (synthetic tones 31–988 Hz, missing fundamental, bass E/A/D/G recordings)
 - [ ] **M3** Tuner v1 on device: note, Hz, cents
 - [ ] **M4** Tuner UI: theme system, needle, in-tune inversion, smoothing, noise gate
 - [ ] **M5** Settings screen (accent colour, A4, instrument, preset) saved to NVS
