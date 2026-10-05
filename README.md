@@ -78,12 +78,14 @@ src/
   audio_in.*        mic → ring buffer
   pitch.*           YIN pitch detection (no hardware deps, unit-testable on PC)
   tuning.*          frequency → note/cents, tuning presets
+  debug_dump.*      stream raw mic audio over serial for tools/capture.py
   tuner_ui.*        tuner screen
   cat.*             note# sprites and animation
   input.*           keyboard mapping
   settings.*        persistent settings (NVS)
 test/
   test_pitch/       native unit tests on synthetic and recorded signals
+  test_tuning/      native unit tests for note/cents conversion
 tools/
   capture.py        save a mic recording from the device as WAV
   pitch_scan.cpp    print detector output frame by frame for a WAV
@@ -95,7 +97,7 @@ recordings/         test audio captured on the device
 - [x] **M0** Scaffold: text on screen, key presses register, beep
 - [x] **M1** Mic level meter and a raw sample dump (bass strings recorded through a speaker; real bass and guitar recordings still to do)
 - [x] **M2** YIN pitch detection passing native unit tests (synthetic tones 31–988 Hz, missing fundamental, bass E/A/D/G recordings)
-- [ ] **M3** Tuner v1 on device: note, Hz, cents
+- [x] **M3** Tuner v1 on device: note, Hz, cents (detector runs in 5 ms per frame using ESP-DSP SIMD)
 - [ ] **M4** Tuner UI: theme system, needle, in-tune inversion, smoothing, noise gate
 - [ ] **M5** Settings screen (accent colour, A4, instrument, preset) saved to NVS
 - [ ] **M6** note# the cat: 1-bit pixel sprites reacting to tuning state, splash screen

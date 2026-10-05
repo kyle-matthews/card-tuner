@@ -1,17 +1,40 @@
 #include "pitch.h"
 
 #include <math.h>
+#include <stdint.h>
+
+#if defined(ESP_PLATFORM)
+#include "dsps_dotprod.h"
+#endif
 
 namespace pitch {
+
+// Dot product: the inner loop of the detector, so on the ESP32-S3 it uses
+// ESP-DSP's hand-optimised SIMD routine (about 10x faster than a plain loop).
+static inline float dot(const float* a, const float* b, size_t n) {
+    float result = 0;
+#if defined(ESP_PLATFORM)
+    dsps_dotprod_f32(a, b, &result, (int)n);
+#else
+    for (size_t i = 0; i < n; i++) result += a[i] * b[i];
+#endif
+    return result;
+}
 
 Yin::Yin(const Config& config) : config_(config) {
     tauMin_ = (size_t)floorf(config.sampleRate / config.maxHz);
     if (tauMin_ < 2) tauMin_ = 2;
     tauMax_ = (size_t)ceilf(config.sampleRate / config.minHz);
     // Integrate over about two of the longest periods: enough to be stable on
-    // bass, short enough to follow a note as it changes.
-    window_ = 2 * tauMax_;
-    x_.resize(window_ + tauMax_);
+    // bass, short enough to follow a note as it changes. A multiple of four
+    // keeps the SIMD dot product on its fast path.
+    window_ = (2 * tauMax_ + 3) & ~(size_t)3;
+
+    const size_t stride = (frameSize() + 3) & ~(size_t)3;
+    laneStore_.resize(4 * stride + 4);
+    float* base = laneStore_.data();
+    while ((uintptr_t)base & 15) base++;
+    for (size_t k = 0; k < 4; k++) lanes_[k] = base + k * stride;
     diff_.resize(tauMax_ + 2);
     cmnd_.resize(tauMax_ + 2);
 }
@@ -22,39 +45,43 @@ Result Yin::detect(const int16_t* samples, size_t n) {
     if (n < len) return result;
 
     // 1. Remove DC and measure loudness.
-    double sum = 0;
+    float sum = 0;  // float, not double: the ESP32-S3 FPU is single precision
     for (size_t i = 0; i < len; i++) sum += samples[i];
-    const float mean = (float)(sum / len);
-    double sq = 0;
+    const float mean = sum / len;
+    float* x = lanes_[0];
+    float sq = 0;
     for (size_t i = 0; i < len; i++) {
-        x_[i] = samples[i] - mean;
-        sq += (double)x_[i] * x_[i];
+        x[i] = samples[i] - mean;
+        sq += x[i] * x[i];
     }
-    result.rms = (float)sqrt(sq / len);
+    result.rms = sqrtf(sq / len);
     if (result.rms < config_.minRms) return result;
 
-    // 2. Difference function: how unlike the signal is to itself shifted by tau.
+    // 2. Difference function: how unlike the signal is to itself shifted by
+    //    tau. Expanding sum((a - b)^2) = sum(a^2) + sum(b^2) - 2 sum(a*b)
+    //    turns the inner loop into one dot product; the shifted window's
+    //    energy sum(b^2) slides along one sample per tau.
     const size_t lastTau = tauMax_ + 1;  // one extra for interpolation
+    for (size_t k = 1; k < 4; k++) {
+        for (size_t i = 0; i + k < len; i++) lanes_[k][i] = x[i + k];
+    }
+    const float energy0 = dot(x, x, window_);
+    float energyTau = energy0;
     diff_[0] = 0;
     for (size_t tau = 1; tau <= lastTau; tau++) {
-        float d = 0;
-        const float* a = x_.data();
-        const float* b = x_.data() + tau;
-        const size_t w = (tau <= tauMax_) ? window_ : window_ - 1;
-        for (size_t j = 0; j < w; j++) {
-            const float delta = a[j] - b[j];
-            d += delta * delta;
-        }
-        diff_[tau] = d;
+        energyTau += x[tau + window_ - 1] * x[tau + window_ - 1] - x[tau - 1] * x[tau - 1];
+        const float* shifted = lanes_[tau & 3] + (tau & ~(size_t)3);  // == x + tau, aligned
+        const float d = energy0 + energyTau - 2 * dot(x, shifted, window_);
+        diff_[tau] = d > 0 ? d : 0;  // rounding can dip just below zero
     }
 
     // 3. Cumulative mean normalised difference: removes the bias towards
     //    tau = 0 and puts dips on a 0..1-ish scale.
     cmnd_[0] = 1;
-    double running = 0;
+    float running = 0;
     for (size_t tau = 1; tau <= lastTau; tau++) {
         running += diff_[tau];
-        cmnd_[tau] = running > 0 ? (float)(diff_[tau] * tau / running) : 1;
+        cmnd_[tau] = running > 0 ? diff_[tau] * tau / running : 1;
     }
 
     // 4. Absolute threshold: take the first dip below the threshold, then walk

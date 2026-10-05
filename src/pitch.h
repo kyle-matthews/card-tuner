@@ -35,9 +35,12 @@ struct Result {
 class Yin {
 public:
     explicit Yin(const Config& config = Config());
+    Yin(const Yin&) = delete;  // holds pointers into its own buffers
+    Yin& operator=(const Yin&) = delete;
 
-    // Samples needed per call: the analysis window plus the longest period.
-    size_t frameSize() const { return window_ + tauMax_; }
+    // Samples needed per call: the analysis window plus the longest period
+    // (plus one, for interpolating around the longest period).
+    size_t frameSize() const { return window_ + tauMax_ + 1; }
 
     // Analyse `n` samples (at least frameSize(); extra samples are ignored).
     Result detect(const int16_t* samples, size_t n);
@@ -51,7 +54,11 @@ private:
     size_t tauMin_;
     size_t tauMax_;
     size_t window_;
-    std::vector<float> x_;     // DC-removed input
+    // DC-removed input, stored four times, each copy shifted one sample
+    // further, so that x + tau is always 16-byte aligned for the SIMD dot
+    // product: x + tau == lanes_[tau % 4] + (tau - tau % 4).
+    std::vector<float> laneStore_;
+    float* lanes_[4];
     std::vector<float> diff_;  // difference function d(tau)
     std::vector<float> cmnd_;  // cumulative mean normalised difference d'(tau)
 };

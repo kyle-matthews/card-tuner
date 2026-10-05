@@ -22,7 +22,7 @@ int16_t ring[RING_SIZE];
 int16_t chunks[2][CHUNK];
 std::atomic<uint32_t> written{0};
 bool running = false;
-uint8_t pga = 4;  // +12 dB starting point
+uint8_t pga = 7;  // +21 dB: good levels for a plucked string in M1 tests
 bool hpf = true;
 
 void writeCodec(uint8_t reg, uint8_t value) {
@@ -46,7 +46,7 @@ void queueBoth() {
 }  // namespace
 
 bool begin() {
-    M5Cardputer.Speaker.end();
+    if (M5Cardputer.Speaker.isRunning()) M5Cardputer.Speaker.end();
 
     auto cfg = M5Cardputer.Mic.config();
     cfg.sample_rate = SAMPLE_RATE;
