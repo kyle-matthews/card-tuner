@@ -4,11 +4,11 @@ A pocket guitar and bass tuner for the **M5Stack Cardputer ADV**, starring **not
 
 It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or soldered.
 
-## Features (planned)
+## Features
 
 - **Chromatic tuner** for guitar and bass, down to bass low E (~41 Hz) and below
 - **Note, frequency and cents** readout with a sharp/flat needle
-- **Tuning presets** (E standard, Drop D, DADGAD, 4/5-string bass, ...) showing the target string
+- **Tuning presets** (E standard, Drop D, DADGAD, 5/6-string bass, ...) showing the target string
 - **Adjustable A4** reference (432–446 Hz)
 - **Monochrome look:** black background with one accent colour, chosen in Settings (white, amber, phosphor green, cyan, pink, lavender, red)
 - **note# the cat:** sleeps in silence, perks up when you play, frets when you're flat or sharp, and is delighted when you're in tune
@@ -61,19 +61,28 @@ g++ -O2 -std=c++17 -Isrc tools/pitch_scan.cpp src/pitch.cpp -o .pio/pitch_scan
 
 ## Controls
 
-Current (development) keys: `-`/`=` mic gain, `c` cycle accent colour, `r` record 3 s of audio for `tools/capture.py`.
-Over serial: `l` toggles a per-frame detector log, `s` sends a screenshot (`tools/screenshot.py`), `d` cycles demo readings.
-
-Planned:
+### Tuner
 
 | Key | Action |
 |---|---|
-| `G` / `B` | Guitar / bass mode |
-| `←` / `→` | Previous / next tuning preset |
-| `+` / `-` | Adjust A4 |
-| `C` | Chromatic mode (no target string) |
-| `S` | Settings |
-| `N` | Say hi to note# |
+| `g` / `b` | Guitar / bass |
+| `,` / `/` (← / →) | Previous / next tuning preset |
+| `c` | Chromatic mode (any note, no target string) |
+| `-` / `=` | A4 pitch down / up (430–450 Hz) |
+| `s` | Settings |
+| `r` | Record 3 s of audio for `tools/capture.py` (development) |
+
+With a preset, the tuner aims at the nearest string: the big note is that string, the cents are measured against it ("tune up" / "tune down" when more than 50 cents out), and the string row along the bottom boxes it. Strings that have been in tune get a dot.
+
+### Settings
+
+`;` / `.` (↑ / ↓) choose a row, `,` / `/` (← / →) or Enter change it, Esc or `s` to go back. Colour, A4 pitch, instrument, tuning, mic gain and showing note# are saved to flash and survive a power cycle.
+
+**Presets.** Guitar: E standard, Drop D, Eb standard, D standard, Drop C, DADGAD, Open G, Open D, 7-string. Bass: E standard, Drop D, Eb standard, D standard, 5-string BEADG, 6-string BEADGC.
+
+### Over serial (development)
+
+`l` toggles a per-frame detector log, `s` sends a screenshot (`tools/screenshot.py`), `d` cycles demo readings, `S` opens settings. Any other character acts as that key on the keyboard.
 
 ## Project layout
 
@@ -88,8 +97,8 @@ src/
   debug_dump.*      stream raw mic audio over serial for tools/capture.py
   tuner_ui.*        tuner screen
   cat.*             note# sprites and animation
-  input.*           keyboard mapping
   settings.*        persistent settings (NVS)
+  settings_ui.*     settings screen
 test/
   test_pitch/       native unit tests on synthetic and recorded signals
   test_tuning/      native unit tests for note/cents conversion
@@ -108,6 +117,6 @@ recordings/         test audio captured on the device
 - [x] **M2** YIN pitch detection passing native unit tests (synthetic tones 31–988 Hz, missing fundamental, bass E/A/D/G recordings)
 - [x] **M3** Tuner v1 on device: note, Hz, cents (detector runs in 5 ms per frame using ESP-DSP SIMD)
 - [x] **M4** Tuner UI: theme system, needle, in-tune inversion, smoothing (median + easing), outlier rejection, hold
-- [ ] **M5** Settings screen (accent colour, A4, instrument, preset) saved to NVS
+- [x] **M5** Settings screen (accent colour, A4, instrument, preset, mic gain) saved to NVS; tuning presets with target string
 - [ ] **M6** note# the cat: 1-bit pixel sprites reacting to tuning state, splash screen
 - [ ] *Maybe later:* reference tone playback through the speaker/headphones

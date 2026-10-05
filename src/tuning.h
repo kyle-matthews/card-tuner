@@ -1,6 +1,7 @@
-// Frequency <-> note conversions. No hardware dependencies.
+// Frequency <-> note conversions and tuning presets. No hardware dependencies.
 
 #pragma once
+#include <stddef.h>
 
 namespace tuning {
 
@@ -19,5 +20,32 @@ float hzOf(int midi, float a4 = 440.0f);
 
 // Note name of a MIDI note, without octave.
 const char* nameOf(int midi);
+
+// Scientific pitch octave of a MIDI note.
+int octaveOf(int midi);
+
+// ---- Presets ----------------------------------------------------------------
+
+enum class Instrument { Guitar, Bass };
+
+constexpr size_t MAX_STRINGS = 7;
+
+struct Preset {
+    const char* name;       // full name for settings ("E Standard")
+    const char* shortName;  // for the tuner header ("E STD")
+    size_t count;
+    int strings[MAX_STRINGS];  // MIDI notes, lowest string first
+};
+
+size_t presetCount(Instrument instrument);
+const Preset& preset(Instrument instrument, size_t index);
+const char* instrumentName(Instrument instrument);
+
+// Lowest note the detector needs to search for this instrument (Hz).
+float lowestHz(Instrument instrument);
+
+// Index of the string nearest to `midi` (a fractional MIDI note), or -1 if
+// the note is more than `maxCents` from every string.
+int nearestString(const Preset& preset, float midi, float maxCents = 600);
 
 }  // namespace tuning

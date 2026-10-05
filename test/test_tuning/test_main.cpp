@@ -4,6 +4,8 @@
 #include <string.h>
 #include <unity.h>
 
+#include <initializer_list>
+
 #include "tuning.h"
 
 static void expectNote(float hz, const char* name, int octave, float cents, float a4 = 440) {
@@ -53,6 +55,53 @@ static void test_low_octave_numbers() {
     TEST_ASSERT_EQUAL_STRING("B", tuning::nameOf(-1));
 }
 
+// ---- Presets ----------------------------------------------------------------
+
+static void test_standard_presets_come_first() {
+    using tuning::Instrument;
+    const tuning::Preset& g = tuning::preset(Instrument::Guitar, 0);
+    TEST_ASSERT_EQUAL_STRING("E Standard", g.name);
+    const int guitar[] = {40, 45, 50, 55, 59, 64};
+    TEST_ASSERT_EQUAL_size_t(6, g.count);
+    TEST_ASSERT_EQUAL_INT_ARRAY(guitar, g.strings, 6);
+
+    const tuning::Preset& b = tuning::preset(Instrument::Bass, 0);
+    const int bass[] = {28, 33, 38, 43};
+    TEST_ASSERT_EQUAL_size_t(4, b.count);
+    TEST_ASSERT_EQUAL_INT_ARRAY(bass, b.strings, 4);
+}
+
+static void test_presets_are_well_formed() {
+    using tuning::Instrument;
+    for (Instrument inst : {Instrument::Guitar, Instrument::Bass}) {
+        TEST_ASSERT_GREATER_THAN(1, tuning::presetCount(inst));
+        for (size_t i = 0; i < tuning::presetCount(inst); i++) {
+            const tuning::Preset& p = tuning::preset(inst, i);
+            TEST_ASSERT_TRUE(p.count >= 4 && p.count <= tuning::MAX_STRINGS);
+            for (size_t s = 0; s < p.count; s++) {
+                // Lowest string first, and every string within the detector's range.
+                if (s) TEST_ASSERT_TRUE_MESSAGE(p.strings[s] > p.strings[s - 1], p.name);
+                TEST_ASSERT_TRUE_MESSAGE(tuning::hzOf(p.strings[s]) > tuning::lowestHz(inst) * 1.05f, p.name);
+            }
+        }
+    }
+}
+
+static void test_out_of_range_preset_index_falls_back() {
+    TEST_ASSERT_EQUAL_STRING("E Standard", tuning::preset(tuning::Instrument::Bass, 99).name);
+}
+
+static void test_nearest_string() {
+    const tuning::Preset& g = tuning::preset(tuning::Instrument::Guitar, 0);
+    TEST_ASSERT_EQUAL_INT(0, tuning::nearestString(g, 40.0f));    // low E in tune
+    TEST_ASSERT_EQUAL_INT(0, tuning::nearestString(g, 39.2f));    // low E, 80 c flat
+    TEST_ASSERT_EQUAL_INT(1, tuning::nearestString(g, 43.0f));    // G2: nearer A (2) than E (3)
+    TEST_ASSERT_EQUAL_INT(4, tuning::nearestString(g, 58.6f));    // B string, 40 c flat
+    TEST_ASSERT_EQUAL_INT(5, tuning::nearestString(g, 64.3f));    // high E
+    TEST_ASSERT_EQUAL_INT(-1, tuning::nearestString(g, 76.0f));   // an octave above: no string
+    TEST_ASSERT_EQUAL_INT(-1, tuning::nearestString(g, 30.0f));   // far below
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -65,5 +114,9 @@ int main() {
     RUN_TEST(test_other_a4_reference);
     RUN_TEST(test_hz_of);
     RUN_TEST(test_low_octave_numbers);
+    RUN_TEST(test_standard_presets_come_first);
+    RUN_TEST(test_presets_are_well_formed);
+    RUN_TEST(test_out_of_range_preset_index_falls_back);
+    RUN_TEST(test_nearest_string);
     return UNITY_END();
 }

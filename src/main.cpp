@@ -1,11 +1,13 @@
-// card-tuner — Milestone 4: the tuner UI.
+// card-tuner — a guitar and bass tuner for the M5Stack Cardputer ADV.
 //
 // Mic -> YIN detector every 25 ms -> tracker (smoothing, outlier rejection,
 // hold, in-tune) -> tuner screen in one accent colour on black.
 //
-// Keys: -/= mic gain, c cycle accent colour, r record a WAV (tools/capture.py).
-// Serial: `l` toggles a per-frame log of detector and tracker output, `s` sends
-// a screenshot (tools/screenshot.py), `d` cycles demo readings for screenshots.
+// Tuner keys: g/b guitar/bass, , / previous/next tuning, c chromatic,
+// -/= A4 pitch, s settings, r record a WAV for tools/capture.py.
+// Serial: `l` toggles a per-frame detector log, `s` sends a screenshot
+// (tools/screenshot.py), `d` cycles demo readings, `S` opens settings; any
+// other character acts as that key on the keyboard.
 
 #include <M5Cardputer.h>
 #include <math.h>
@@ -13,6 +15,8 @@
 #include "audio_in.h"
 #include "debug_dump.h"
 #include "pitch.h"
+#include "settings.h"
+#include "settings_ui.h"
 #include "theme.h"
 #include "tracker.h"
 #include "tuner_ui.h"
@@ -23,23 +27,127 @@ static M5Canvas canvas(&M5Cardputer.Display);
 static constexpr uint32_t HOP_SAMPLES = 400;  // analyse every 25 ms
 static constexpr uint32_t TOAST_MS = 1500;
 
-static pitch::Config yinConfig() {
-    pitch::Config cfg;
-    cfg.minRms = 20;  // quiet-room noise floor is ~8 at +21 dB
-    return cfg;
-}
-static pitch::Yin yin(yinConfig());
+static pitch::Yin* yin = nullptr;  // rebuilt when the instrument changes
+static float yinMinHz = 0;
 static tracker::Tracker noteTracker;
 static int16_t* frame = nullptr;
 static uint32_t nextFrameEnd = 0;
 
+enum class Screen { Tuner, Settings };
+static Screen screen = Screen::Tuner;
+
+static uint32_t tunedStrings = 0;  // strings that have been in tune since the preset changed
 static uint32_t detectMicros = 0;
 static bool serialLog = false;
 static String toast;
 static uint32_t toastUntil = 0;
 
-// Demo readings, so every UI state can be screenshotted without live audio.
+static void showToast(const String& text) {
+    toast = text;
+    toastUntil = millis() + TOAST_MS;
+}
+
+// ---- Settings ---------------------------------------------------------------
+
+static const tuning::Preset* activePreset() {
+    const settings::Settings& s = settings::get();
+    return s.chromatic ? nullptr : &s.preset();
+}
+
+static String modeLabel() {
+    const settings::Settings& s = settings::get();
+    String label = s.inst() == tuning::Instrument::Guitar ? "GUITAR" : "BASS";
+    label += "  ";
+    label += s.chromatic ? "CHROMATIC" : s.preset().shortName;
+    return label;
+}
+
+// Push the current settings into every subsystem.
+static void applySettings() {
+    const settings::Settings& s = settings::get();
+    theme::setAccent(s.accent);
+    noteTracker.setA4(s.a4);
+    if (audio_in::pgaStep() != s.micGain) audio_in::setPgaStep(s.micGain);
+
+    // Search only as low as the instrument needs: guitar frames are much
+    // shorter, so they are faster and less prone to low-octave mistakes.
+    const float minHz = tuning::lowestHz(s.inst());
+    if (minHz != yinMinHz) {
+        pitch::Config cfg;
+        cfg.minHz = minHz;
+        cfg.minRms = 20;  // quiet-room noise floor is ~8 at +21 dB
+        delete yin;
+        yin = new pitch::Yin(cfg);
+        yinMinHz = minHz;
+    }
+}
+
+static void settingsChanged(bool resetTuned = true) {
+    if (resetTuned) tunedStrings = 0;
+    applySettings();
+    settings::changed();
+}
+
+// ---- Analysis ---------------------------------------------------------------
+
+static void analyse() {
+    const size_t len = yin->frameSize();
+    const uint32_t count = audio_in::sampleCount();
+    if (count < len) return;
+    if (count < nextFrameEnd) return;
+    // If we fell behind, skip ahead to the newest audio rather than catch up.
+    const uint32_t end = (count - nextFrameEnd > HOP_SAMPLES) ? count : nextFrameEnd;
+    nextFrameEnd = end + HOP_SAMPLES;
+    if (!audio_in::copy(end - len, frame, len)) return;
+
+    const uint32_t t0 = micros();
+    const pitch::Result raw = yin->detect(frame, len);
+    detectMicros = micros() - t0;
+    const tracker::Reading& shown = noteTracker.update(raw, millis());
+
+    const tuner_ui::Target target = tuner_ui::targetFor(shown, activePreset());
+    if (target.inTune && target.string >= 0) tunedStrings |= 1u << target.string;
+
+    if (serialLog && !debug_dump::active()) {
+        Serial.printf("%lu ", (unsigned long)millis());
+        if (raw.voiced) {
+            const tuning::Note n = tuning::fromHz(raw.hz, settings::get().a4);
+            Serial.printf("raw %8.3f Hz %-2s%d %+6.1f c conf %.2f", raw.hz, n.name, n.octave, n.cents,
+                          raw.confidence);
+        } else {
+            Serial.printf("raw %-38s", "--");
+        }
+        static const char* const STATES[] = {"idle", "live", "held"};
+        Serial.printf(" rms %6.1f %4lu us | %s %-2s %+5.1f c%s\n", raw.rms, (unsigned long)detectMicros,
+                      STATES[(int)shown.state], shown.state == tracker::State::Idle ? "" : tuning::nameOf(target.midi),
+                      target.cents, target.inTune ? " IN TUNE" : "");
+    }
+}
+
+// Boot-time check that the detector gives the right answer at a usable speed
+// on this hardware: synthetic plucked-string tones, results over serial.
+static void selfTest() {
+    pitch::Config cfg;  // full range, the slowest case
+    pitch::Yin test(cfg);
+    const float notes[] = {41.20f, 82.41f, 329.63f};
+    for (float hz : notes) {
+        for (size_t i = 0; i < test.frameSize(); i++) {
+            float v = 0;
+            for (int k = 1; k <= 8; k++) v += sinf(2 * PI * hz * k * i / audio_in::SAMPLE_RATE) / k;
+            frame[i] = (int16_t)(v * 6000);
+        }
+        const uint32_t t0 = micros();
+        const pitch::Result r = test.detect(frame, test.frameSize());
+        const uint32_t us = micros() - t0;
+        Serial.printf("self-test %7.2f Hz -> %8.3f Hz (%+.2f c) in %lu us\n", hz, r.hz,
+                      r.voiced ? 1200 * log2f(r.hz / hz) : 0.0f, (unsigned long)us);
+    }
+}
+
+// ---- Demo readings (for screenshots without live audio) -------------------
+
 static int demoIndex = 0;  // 0 = off
+
 static tracker::Reading reading(tracker::State state, float hz, int midi, float cents, bool inTune) {
     tracker::Reading r;
     r.state = state;
@@ -49,93 +157,85 @@ static tracker::Reading reading(tracker::State state, float hz, int midi, float 
     r.inTune = inTune;
     return r;
 }
+
 static tracker::Reading demoReading() {
     using tracker::State;
     switch (demoIndex) {
         case 1: return reading(State::Live, 82.45f, 40, 1.0f, true);     // E2 in tune
         case 2: return reading(State::Live, 108.0f, 45, -31.8f, false);  // A2 flat
-        case 3: return reading(State::Live, 41.6f, 28, 16.6f, false);    // E1 sharp
+        case 3: return reading(State::Live, 141.0f, 49, 30.0f, false);   // D3 string, way flat
         case 4: return reading(State::Live, 116.5f, 46, -0.6f, false);   // A#2 settling
         case 5: return reading(State::Held, 55.1f, 33, 3.1f, false);     // A1 held
         default: return tracker::Reading();
     }
 }
 
-static void showToast(const String& text) {
-    toast = text;
-    toastUntil = millis() + TOAST_MS;
-}
-
-// ---- Analysis ---------------------------------------------------------------
-
-static void analyse() {
-    const uint32_t count = audio_in::sampleCount();
-    if (count < nextFrameEnd) return;
-    // If we fell behind, skip ahead to the newest audio rather than catch up.
-    const uint32_t end = (count - nextFrameEnd > HOP_SAMPLES) ? count : nextFrameEnd;
-    nextFrameEnd = end + HOP_SAMPLES;
-    if (!audio_in::copy(end - yin.frameSize(), frame, yin.frameSize())) return;
-
-    const uint32_t t0 = micros();
-    const pitch::Result raw = yin.detect(frame, yin.frameSize());
-    detectMicros = micros() - t0;
-    const tracker::Reading& shown = noteTracker.update(raw, millis());
-
-    if (serialLog && !debug_dump::active()) {
-        Serial.printf("%lu ", (unsigned long)millis());
-        if (raw.voiced) {
-            const tuning::Note n = tuning::fromHz(raw.hz);
-            Serial.printf("raw %8.3f Hz %-2s%d %+6.1f c conf %.2f", raw.hz, n.name, n.octave, n.cents,
-                          raw.confidence);
-        } else {
-            Serial.printf("raw %-38s", "--");
-        }
-        static const char* const STATES[] = {"idle", "live", "held"};
-        Serial.printf(" rms %6.1f %4lu us | %s %-2s %+5.1f c%s\n", raw.rms, (unsigned long)detectMicros,
-                      STATES[(int)shown.state], shown.state == tracker::State::Idle ? "" : tuning::nameOf(shown.midi),
-                      shown.cents, shown.inTune ? " IN TUNE" : "");
-    }
-}
-
-// Boot-time check that the detector gives the right answer at a usable speed
-// on this hardware: synthetic plucked-string tones, results over serial.
-static void selfTest() {
-    const float notes[] = {41.20f, 82.41f, 329.63f};
-    for (float hz : notes) {
-        for (size_t i = 0; i < yin.frameSize(); i++) {
-            float v = 0;
-            for (int k = 1; k <= 8; k++) v += sinf(2 * PI * hz * k * i / audio_in::SAMPLE_RATE) / k;
-            frame[i] = (int16_t)(v * 6000);
-        }
-        const uint32_t t0 = micros();
-        const pitch::Result r = yin.detect(frame, yin.frameSize());
-        const uint32_t us = micros() - t0;
-        Serial.printf("self-test %7.2f Hz -> %8.3f Hz (%+.2f c) in %lu us\n", hz, r.hz,
-                      r.voiced ? 1200 * log2f(r.hz / hz) : 0.0f, (unsigned long)us);
-    }
-}
-
 // ---- Input ------------------------------------------------------------------
 
-static void handleKey(char c) {
+static void handleTunerKey(char c) {
+    settings::Settings& s = settings::get();
     switch (c) {
-        case '=':
-        case '+':
-            audio_in::setPgaStep(audio_in::pgaStep() + 1);
-            showToast(String("mic +") + audio_in::pgaStep() * 3 + "dB");
+        case 'g':
+        case 'b': {
+            const tuning::Instrument inst = c == 'g' ? tuning::Instrument::Guitar : tuning::Instrument::Bass;
+            if (s.inst() != inst) {
+                s.instrument = (uint8_t)inst;
+                settingsChanged();
+            }
+            showToast(tuning::instrumentName(inst));
+            break;
+        }
+        case ',':
+        case '/': {
+            const int count = tuning::presetCount(s.inst());
+            s.presetIndex() = (s.presetIndex() + (c == '/' ? 1 : count - 1)) % count;
+            s.chromatic = false;
+            settingsChanged();
+            showToast(s.preset().name);
+            break;
+        }
+        case 'c':
+            s.chromatic = !s.chromatic;
+            settingsChanged();
+            showToast(s.chromatic ? "Chromatic" : s.preset().name);
             break;
         case '-':
         case '_':
-            if (audio_in::pgaStep() > 0) audio_in::setPgaStep(audio_in::pgaStep() - 1);
-            showToast(String("mic +") + audio_in::pgaStep() * 3 + "dB");
+        case '=':
+        case '+':
+            s.a4 = constrain(s.a4 + ((c == '-' || c == '_') ? -1 : 1), settings::A4_MIN, settings::A4_MAX);
+            settingsChanged(false);
+            showToast(String("A4 = ") + s.a4 + " Hz");
             break;
-        case 'c':
-            theme::setAccent(theme::accentIndex() + 1);
-            showToast(theme::ACCENTS[theme::accentIndex()].name);
+        case 's':
+            settings_ui::open();
+            screen = Screen::Settings;
             break;
         case 'r':
             debug_dump::start();
             break;
+    }
+}
+
+static void handleKey(char c) {
+    if (screen == Screen::Settings) {
+        switch (settings_ui::handleKey(c)) {
+            case settings_ui::Action::Changed:
+                settingsChanged();
+                break;
+            case settings_ui::Action::Close:
+                screen = Screen::Tuner;
+                break;
+            case settings_ui::Action::None:
+                break;
+        }
+        return;
+    }
+    handleTunerKey(c);
+}
+
+static void handleSerial(char c) {
+    switch (c) {
         case 'l':
             serialLog = !serialLog;
             break;
@@ -145,8 +245,15 @@ static void handleKey(char c) {
         case 'd':
             demoIndex = (demoIndex + 1) % 6;
             break;
+        case 'S':
+            handleKey('s');
+            break;
+        default:
+            handleKey(c);
     }
 }
+
+// ---- Main -------------------------------------------------------------------
 
 void setup() {
     auto cfg = M5.config();
@@ -158,11 +265,18 @@ void setup() {
     canvas.setColorDepth(16);
     canvas.createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
 
-    frame = (int16_t*)malloc(yin.frameSize() * sizeof(int16_t));
+    // Big enough for the longest frame (full bass range).
+    {
+        pitch::Yin widest{pitch::Config()};
+        frame = (int16_t*)malloc(widest.frameSize() * sizeof(int16_t));
+    }
     selfTest();
+
+    settings::load();
     if (!audio_in::begin()) Serial.println("mic failed to start");
-    nextFrameEnd = yin.frameSize();
-    Serial.printf("card-tuner M4 started, frame %u samples\n", (unsigned)yin.frameSize());
+    applySettings();
+    nextFrameEnd = yin->frameSize();
+    Serial.printf("card-tuner started: %s, A4 %u Hz\n", modeLabel().c_str(), settings::get().a4);
 }
 
 void loop() {
@@ -170,21 +284,34 @@ void loop() {
     audio_in::poll();
 
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
-        for (char c : M5Cardputer.Keyboard.keysState().word) handleKey(c);
+        const auto keys = M5Cardputer.Keyboard.keysState();
+        for (char c : keys.word) handleKey(c);
+        if (keys.enter) handleKey('\n');
     }
-    while (Serial.available()) handleKey(Serial.read());
+    while (Serial.available()) handleSerial(Serial.read());
 
     debug_dump::service();
+    settings::service();
     analyse();
 
     static uint32_t lastDraw = 0;
     if (millis() - lastDraw >= 33) {
         lastDraw = millis();
-        tuner_ui::Status status;
-        if (millis() < toastUntil) status.toast = toast;
-        status.footerActive = debug_dump::active();
-        status.footer = debug_dump::status().length() ? debug_dump::status() : String("-/= mic  c colour  r rec");
-        tuner_ui::draw(canvas, demoIndex ? demoReading() : noteTracker.reading(), status);
+        if (screen == Screen::Settings) {
+            settings_ui::draw(canvas);
+        } else {
+            const settings::Settings& s = settings::get();
+            tuner_ui::Status status;
+            status.mode = modeLabel();
+            status.a4 = s.a4;
+            status.preset = activePreset();
+            status.tunedStrings = tunedStrings;
+            status.showCat = s.showCat;
+            if (millis() < toastUntil) status.toast = toast;
+            status.footerActive = debug_dump::active();
+            status.footer = debug_dump::status().length() ? debug_dump::status() : String("s settings  c chromatic");
+            tuner_ui::draw(canvas, demoIndex ? demoReading() : noteTracker.reading(), status);
+        }
         canvas.pushSprite(0, 0);
     }
 }
