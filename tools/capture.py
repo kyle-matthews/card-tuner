@@ -55,18 +55,24 @@ def main() -> None:
     print(f"Recording {expected / rate:.1f} s at {rate} Hz "
           f"(PGA +{int(header['pga']) * 3} dB, HPF {'on' if header['hpf'] == '1' else 'off'})...")
 
-    samples: list[int] = []
-    while True:
-        line = ser.readline().decode(errors="replace").strip()
-        if not line:
+    # Read in bulk: line-by-line reads are slow enough to make the device's
+    # USB buffer overflow.
+    raw = bytearray()
+    while b"#DUMP_END" not in raw or b"\n" not in raw[raw.index(b"#DUMP_END"):]:
+        chunk = ser.read(65536)
+        if not chunk:
             sys.exit("Timed out mid-transfer.")
-        if line == "#DUMP_END":
-            break
-        samples.extend(int(v) for v in line.split(","))
+        raw += chunk
     ser.close()
 
+    body, _, tail = raw.partition(b"#DUMP_END")
+    device_sum = int(tail.split(b"sum=")[1].split()[0])
+    samples = [int(v) for line in body.decode().split() for v in line.split(",") if v]
+
     if len(samples) != expected:
-        print(f"Warning: got {len(samples)} samples, expected {expected}")
+        sys.exit(f"Transfer error: got {len(samples)} samples, expected {expected}. Try again.")
+    if sum(samples) & 0xFFFFFFFF != device_sum:
+        sys.exit("Transfer error: checksum mismatch. Try again.")
 
     out_dir = ROOT / "recordings"
     out_dir.mkdir(exist_ok=True)

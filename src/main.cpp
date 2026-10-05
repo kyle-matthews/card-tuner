@@ -66,18 +66,25 @@ static void startDump() {
 }
 
 static void sendDump() {
+    // Block (up to a second per write) rather than drop data if the PC falls
+    // behind; a checksum lets tools/capture.py detect anything that slips.
+    Serial.setTxTimeoutMs(1000);
     Serial.printf("#DUMP_BEGIN rate=%lu samples=%u pga=%u hpf=%d\n",
                   (unsigned long)audio_in::SAMPLE_RATE, (unsigned)dump.len,
                   (unsigned)audio_in::pgaStep(), (int)audio_in::highPass());
+    uint32_t sum = 0;
     char line[16 * 7 + 2];
     for (size_t i = 0; i < dump.len; i += 16) {
         int n = 0;
         for (size_t j = i; j < i + 16 && j < dump.len; j++) {
             n += snprintf(line + n, sizeof(line) - n, j == i ? "%d" : ",%d", dump.buf[j]);
+            sum += (uint32_t)(int32_t)dump.buf[j];
         }
         Serial.println(line);
     }
-    Serial.println("#DUMP_END");
+    Serial.printf("#DUMP_END sum=%lu\n", (unsigned long)sum);
+    Serial.flush();
+    Serial.setTxTimeoutMs(100);
 }
 
 static void serviceDump() {
@@ -208,6 +215,7 @@ static void handleKey(char c) {
 void setup() {
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);  // true = enable keyboard
+    Serial.setTxBufferSize(4096);
     Serial.begin(115200);
 
     M5Cardputer.Display.setRotation(1);
