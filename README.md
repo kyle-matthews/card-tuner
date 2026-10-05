@@ -63,7 +63,7 @@ test/
 
 ## Roadmap
 
-- [ ] **M0** Scaffold: text on screen, key presses register, beep
+- [x] **M0** Scaffold: text on screen, key presses register, beep
 - [ ] **M1** Mic level meter and a raw sample dump (record a real bass low E for testing)
 - [ ] **M2** YIN pitch detection passing native unit tests (41 Hz, 82 Hz, 330 Hz, no octave errors)
 - [ ] **M3** Tuner v1 on device: note, Hz, cents
