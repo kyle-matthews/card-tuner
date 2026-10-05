@@ -59,7 +59,12 @@ g++ -O2 -std=c++17 -Isrc tools/pitch_scan.cpp src/pitch.cpp -o .pio/pitch_scan
 .pio/pitch_scan recordings/speaker_bass_e.wav
 ```
 
-## Controls (planned)
+## Controls
+
+Current (development) keys: `-`/`=` mic gain, `c` cycle accent colour, `r` record 3 s of audio for `tools/capture.py`.
+Over serial: `l` toggles a per-frame detector log, `s` sends a screenshot (`tools/screenshot.py`), `d` cycles demo readings.
+
+Planned:
 
 | Key | Action |
 |---|---|
@@ -78,6 +83,8 @@ src/
   audio_in.*        mic → ring buffer
   pitch.*           YIN pitch detection (no hardware deps, unit-testable on PC)
   tuning.*          frequency → note/cents, tuning presets
+  tracker.*         smoothing, outlier rejection, hold and in-tune detection
+  theme.*           accent colour and its dim/faint shades
   debug_dump.*      stream raw mic audio over serial for tools/capture.py
   tuner_ui.*        tuner screen
   cat.*             note# sprites and animation
@@ -86,9 +93,11 @@ src/
 test/
   test_pitch/       native unit tests on synthetic and recorded signals
   test_tuning/      native unit tests for note/cents conversion
+  test_tracker/     native unit tests for smoothing, hold and in-tune
 tools/
   capture.py        save a mic recording from the device as WAV
   pitch_scan.cpp    print detector output frame by frame for a WAV
+  screenshot.py     save the device's screen as a PNG
 recordings/         test audio captured on the device
 ```
 
@@ -98,7 +107,7 @@ recordings/         test audio captured on the device
 - [x] **M1** Mic level meter and a raw sample dump (bass strings recorded through a speaker; real bass and guitar recordings still to do)
 - [x] **M2** YIN pitch detection passing native unit tests (synthetic tones 31–988 Hz, missing fundamental, bass E/A/D/G recordings)
 - [x] **M3** Tuner v1 on device: note, Hz, cents (detector runs in 5 ms per frame using ESP-DSP SIMD)
-- [ ] **M4** Tuner UI: theme system, needle, in-tune inversion, smoothing, noise gate
+- [x] **M4** Tuner UI: theme system, needle, in-tune inversion, smoothing (median + easing), outlier rejection, hold
 - [ ] **M5** Settings screen (accent colour, A4, instrument, preset) saved to NVS
 - [ ] **M6** note# the cat: 1-bit pixel sprites reacting to tuning state, splash screen
 - [ ] *Maybe later:* reference tone playback through the speaker/headphones

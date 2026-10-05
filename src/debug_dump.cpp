@@ -87,6 +87,39 @@ void service() {
 
 bool active() { return isActive; }
 
+void screenshot(const void* pixels, int width, int height) {
+    static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const uint8_t* p = static_cast<const uint8_t*>(pixels);
+    const size_t len = (size_t)width * height * 2;
+
+    Serial.setTxTimeoutMs(1000);
+    Serial.printf("#SHOT_BEGIN w=%d h=%d\n", width, height);
+    uint32_t sum = 0;
+    char line[97];
+    size_t n = 0;
+    for (size_t i = 0; i < len; i += 3) {
+        const uint32_t b0 = p[i], b1 = i + 1 < len ? p[i + 1] : 0, b2 = i + 2 < len ? p[i + 2] : 0;
+        sum += b0 + b1 + b2;
+        const uint32_t v = (b0 << 16) | (b1 << 8) | b2;
+        line[n++] = B64[(v >> 18) & 63];
+        line[n++] = B64[(v >> 12) & 63];
+        line[n++] = i + 1 < len ? B64[(v >> 6) & 63] : '=';
+        line[n++] = i + 2 < len ? B64[v & 63] : '=';
+        if (n == 96) {
+            line[n] = 0;
+            Serial.println(line);
+            n = 0;
+        }
+    }
+    if (n) {
+        line[n] = 0;
+        Serial.println(line);
+    }
+    Serial.printf("#SHOT_END sum=%lu\n", (unsigned long)sum);
+    Serial.flush();
+    Serial.setTxTimeoutMs(100);
+}
+
 const String& status() { return statusText; }
 
 }  // namespace debug_dump

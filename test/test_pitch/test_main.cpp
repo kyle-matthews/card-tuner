@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "../wav_reader.h"
 #include "pitch.h"
 
 static constexpr float RATE = 16000;
@@ -116,33 +117,6 @@ static void test_guitar_range_config() {
 }
 
 // ---- Recordings ------------------------------------------------------------
-
-// Minimal reader for the 16-bit mono WAVs written by tools/capture.py.
-static Signal readWav(const std::string& name) {
-    const char* dirs[] = {"recordings/", "../recordings/", "../../recordings/"};
-    for (const char* dir : dirs) {
-        FILE* f = fopen((std::string(dir) + name).c_str(), "rb");
-        if (!f) continue;
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        std::vector<uint8_t> buf(size);
-        size_t got = fread(buf.data(), 1, size, f);
-        fclose(f);
-        // Find the "data" chunk.
-        for (size_t i = 12; i + 8 <= got;) {
-            uint32_t len;
-            memcpy(&len, &buf[i + 4], 4);
-            if (memcmp(&buf[i], "data", 4) == 0) {
-                Signal s(std::min<size_t>(len, got - i - 8) / 2);
-                memcpy(s.data(), &buf[i + 8], s.size() * 2);
-                return s;
-            }
-            i += 8 + len;
-        }
-    }
-    return {};
-}
 
 struct Recording {
     const char* file;

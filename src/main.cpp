@@ -1,11 +1,11 @@
-// card-tuner — Milestone 3: tuner v1 on the device.
+// card-tuner — Milestone 4: the tuner UI.
 //
-// Runs the YIN detector on the live mic every 50 ms and shows the note, its
-// frequency and how many cents sharp or flat it is. Unsmoothed on purpose so
-// we can see how the raw detector behaves; smoothing comes in Milestone 4.
+// Mic -> YIN detector every 25 ms -> tracker (smoothing, outlier rejection,
+// hold, in-tune) -> tuner screen in one accent colour on black.
 //
-// Keys: -/= mic gain, r record a WAV (tools/capture.py).
-// Serial: send `l` to toggle a per-frame log of detector output.
+// Keys: -/= mic gain, c cycle accent colour, r record a WAV (tools/capture.py).
+// Serial: `l` toggles a per-frame log of detector and tracker output, `s` sends
+// a screenshot (tools/screenshot.py), `d` cycles demo readings for screenshots.
 
 #include <M5Cardputer.h>
 #include <math.h>
@@ -13,18 +13,15 @@
 #include "audio_in.h"
 #include "debug_dump.h"
 #include "pitch.h"
+#include "theme.h"
+#include "tracker.h"
+#include "tuner_ui.h"
 #include "tuning.h"
 
 static M5Canvas canvas(&M5Cardputer.Display);
 
-// Placeholder for the theme system (Milestone 4): one accent colour on black.
-static constexpr uint16_t BG = TFT_BLACK;
-static constexpr uint16_t ACCENT = TFT_WHITE;
-static constexpr uint16_t DIM = 0x7BEF;    // ~50% grey
-static constexpr uint16_t FAINT = 0x31A6;  // ~20% grey
-
-static constexpr uint32_t HOP_SAMPLES = 800;   // analyse every 50 ms
-static constexpr uint32_t HOLD_MS = 1500;      // keep showing the last note this long
+static constexpr uint32_t HOP_SAMPLES = 400;  // analyse every 25 ms
+static constexpr uint32_t TOAST_MS = 1500;
 
 static pitch::Config yinConfig() {
     pitch::Config cfg;
@@ -32,14 +29,42 @@ static pitch::Config yinConfig() {
     return cfg;
 }
 static pitch::Yin yin(yinConfig());
+static tracker::Tracker noteTracker;
 static int16_t* frame = nullptr;
 static uint32_t nextFrameEnd = 0;
 
-static pitch::Result last;          // most recent detector output
-static pitch::Result lastVoiced;    // most recent voiced output
-static uint32_t lastVoicedMs = 0;
 static uint32_t detectMicros = 0;
 static bool serialLog = false;
+static String toast;
+static uint32_t toastUntil = 0;
+
+// Demo readings, so every UI state can be screenshotted without live audio.
+static int demoIndex = 0;  // 0 = off
+static tracker::Reading reading(tracker::State state, float hz, int midi, float cents, bool inTune) {
+    tracker::Reading r;
+    r.state = state;
+    r.hz = hz;
+    r.midi = midi;
+    r.cents = cents;
+    r.inTune = inTune;
+    return r;
+}
+static tracker::Reading demoReading() {
+    using tracker::State;
+    switch (demoIndex) {
+        case 1: return reading(State::Live, 82.45f, 40, 1.0f, true);     // E2 in tune
+        case 2: return reading(State::Live, 108.0f, 45, -31.8f, false);  // A2 flat
+        case 3: return reading(State::Live, 41.6f, 28, 16.6f, false);    // E1 sharp
+        case 4: return reading(State::Live, 116.5f, 46, -0.6f, false);   // A#2 settling
+        case 5: return reading(State::Held, 55.1f, 33, 3.1f, false);     // A1 held
+        default: return tracker::Reading();
+    }
+}
+
+static void showToast(const String& text) {
+    toast = text;
+    toastUntil = millis() + TOAST_MS;
+}
 
 // ---- Analysis ---------------------------------------------------------------
 
@@ -52,23 +77,23 @@ static void analyse() {
     if (!audio_in::copy(end - yin.frameSize(), frame, yin.frameSize())) return;
 
     const uint32_t t0 = micros();
-    last = yin.detect(frame, yin.frameSize());
+    const pitch::Result raw = yin.detect(frame, yin.frameSize());
     detectMicros = micros() - t0;
+    const tracker::Reading& shown = noteTracker.update(raw, millis());
 
-    if (last.voiced) {
-        lastVoiced = last;
-        lastVoicedMs = millis();
-    }
     if (serialLog && !debug_dump::active()) {
-        if (last.voiced) {
-            tuning::Note n = tuning::fromHz(last.hz);
-            Serial.printf("%lu %8.3f Hz %-2s%d %+6.1f c conf %.2f rms %6.1f %4lu us\n",
-                          (unsigned long)millis(), last.hz, n.name, n.octave, n.cents, last.confidence,
-                          last.rms, (unsigned long)detectMicros);
+        Serial.printf("%lu ", (unsigned long)millis());
+        if (raw.voiced) {
+            const tuning::Note n = tuning::fromHz(raw.hz);
+            Serial.printf("raw %8.3f Hz %-2s%d %+6.1f c conf %.2f", raw.hz, n.name, n.octave, n.cents,
+                          raw.confidence);
         } else {
-            Serial.printf("%lu -- rms %6.1f %4lu us\n", (unsigned long)millis(), last.rms,
-                          (unsigned long)detectMicros);
+            Serial.printf("raw %-38s", "--");
         }
+        static const char* const STATES[] = {"idle", "live", "held"};
+        Serial.printf(" rms %6.1f %4lu us | %s %-2s %+5.1f c%s\n", raw.rms, (unsigned long)detectMicros,
+                      STATES[(int)shown.state], shown.state == tracker::State::Idle ? "" : tuning::nameOf(shown.midi),
+                      shown.cents, shown.inTune ? " IN TUNE" : "");
     }
 }
 
@@ -90,77 +115,6 @@ static void selfTest() {
     }
 }
 
-// ---- Drawing ----------------------------------------------------------------
-
-static void drawCentsBar(int x, int y, int w, int h, float cents, uint16_t colour) {
-    const int mid = x + w / 2;
-    canvas.drawFastHLine(x, y + h / 2, w, FAINT);
-    for (int c = -50; c <= 50; c += 10) {
-        const int tx = mid + c * (w / 2) / 50;
-        const int th = (c == 0) ? h : (c % 50 == 0 ? h / 2 : h / 4);
-        canvas.drawFastVLine(tx, y + (h - th) / 2, th, c == 0 ? DIM : FAINT);
-    }
-    const int mx = mid + (int)(constrain(cents, -50.0f, 50.0f) * (w / 2) / 50);
-    canvas.fillRect(mx - 2, y, 5, h, colour);
-}
-
-static void draw() {
-    canvas.fillSprite(BG);
-    canvas.setFont(&fonts::Font0);
-
-    canvas.setTextSize(1);
-    canvas.setTextColor(DIM, BG);
-    canvas.setCursor(4, 3);
-    canvas.print("M3 tuner");
-    canvas.setCursor(196, 3);
-    canvas.printf("+%udB", audio_in::pgaStep() * 3);
-
-    const bool holding = lastVoicedMs && millis() - lastVoicedMs < HOLD_MS;
-    if (holding) {
-        const tuning::Note n = tuning::fromHz(lastVoiced.hz);
-        // Fresh readings in full colour; held readings dimmed.
-        const uint16_t colour = last.voiced ? ACCENT : DIM;
-
-        canvas.setTextColor(colour, BG);
-        canvas.setTextSize(7);
-        canvas.setCursor(8, 20);
-        canvas.print(n.name);
-        canvas.setTextSize(2);
-        canvas.setCursor(8 + 42 * strlen(n.name) + 2, 20 + 56 - 16);
-        canvas.print(n.octave);
-
-        canvas.setTextSize(2);
-        canvas.setCursor(124, 26);
-        canvas.printf("%.2f Hz", lastVoiced.hz);
-        canvas.setTextSize(3);
-        canvas.setCursor(124, 52);
-        canvas.printf("%+.0fc", n.cents);
-
-        drawCentsBar(10, 88, 220, 14, n.cents, colour);
-    } else {
-        canvas.setTextColor(FAINT, BG);
-        canvas.setTextSize(7);
-        canvas.setCursor(8, 20);
-        canvas.print("-");
-        canvas.setTextSize(1);
-        canvas.setTextColor(DIM, BG);
-        canvas.setCursor(124, 40);
-        canvas.print("play a note...");
-        drawCentsBar(10, 88, 220, 14, 0, BG);
-    }
-
-    canvas.setTextSize(1);
-    canvas.setTextColor(DIM, BG);
-    canvas.setCursor(4, 112);
-    canvas.printf("yin %.1fms  conf %.2f  rms %.0f", detectMicros / 1000.0f,
-                  last.voiced ? last.confidence : 0.0f, last.rms);
-    canvas.setCursor(4, 124);
-    canvas.setTextColor(debug_dump::active() ? ACCENT : FAINT, BG);
-    canvas.print(debug_dump::status().length() ? debug_dump::status() : String("-/= gain  r record"));
-
-    canvas.pushSprite(0, 0);
-}
-
 // ---- Input ------------------------------------------------------------------
 
 static void handleKey(char c) {
@@ -168,16 +122,28 @@ static void handleKey(char c) {
         case '=':
         case '+':
             audio_in::setPgaStep(audio_in::pgaStep() + 1);
+            showToast(String("mic +") + audio_in::pgaStep() * 3 + "dB");
             break;
         case '-':
         case '_':
             if (audio_in::pgaStep() > 0) audio_in::setPgaStep(audio_in::pgaStep() - 1);
+            showToast(String("mic +") + audio_in::pgaStep() * 3 + "dB");
+            break;
+        case 'c':
+            theme::setAccent(theme::accentIndex() + 1);
+            showToast(theme::ACCENTS[theme::accentIndex()].name);
             break;
         case 'r':
             debug_dump::start();
             break;
         case 'l':
             serialLog = !serialLog;
+            break;
+        case 's':
+            debug_dump::screenshot(canvas.getBuffer(), canvas.width(), canvas.height());
+            break;
+        case 'd':
+            demoIndex = (demoIndex + 1) % 6;
             break;
     }
 }
@@ -196,7 +162,7 @@ void setup() {
     selfTest();
     if (!audio_in::begin()) Serial.println("mic failed to start");
     nextFrameEnd = yin.frameSize();
-    Serial.printf("card-tuner M3 started, frame %u samples\n", (unsigned)yin.frameSize());
+    Serial.printf("card-tuner M4 started, frame %u samples\n", (unsigned)yin.frameSize());
 }
 
 void loop() {
@@ -214,6 +180,11 @@ void loop() {
     static uint32_t lastDraw = 0;
     if (millis() - lastDraw >= 33) {
         lastDraw = millis();
-        draw();
+        tuner_ui::Status status;
+        if (millis() < toastUntil) status.toast = toast;
+        status.footerActive = debug_dump::active();
+        status.footer = debug_dump::status().length() ? debug_dump::status() : String("-/= mic  c colour  r rec");
+        tuner_ui::draw(canvas, demoIndex ? demoReading() : noteTracker.reading(), status);
+        canvas.pushSprite(0, 0);
     }
 }
