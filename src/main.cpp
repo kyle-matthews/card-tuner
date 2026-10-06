@@ -122,7 +122,7 @@ static void analyse() {
         }
         static const char* const STATES[] = {"idle", "live", "held"};
         Serial.printf(" rms %6.1f %4lu us | %s %-2s %+5.1f c%s\n", raw.rms, (unsigned long)detectMicros,
-                      STATES[(int)shown.state], shown.state == tracker::State::Idle ? "" : tuning::nameOf(target.midi),
+                      STATES[(int)shown.state], shown.state == tracker::State::Idle ? "" : tuning::nameOf(target.midi, target.flats),
                       target.cents, target.inTune ? " IN TUNE" : "");
     }
 }

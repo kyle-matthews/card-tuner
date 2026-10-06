@@ -102,6 +102,29 @@ static void test_nearest_string() {
     TEST_ASSERT_EQUAL_INT(-1, tuning::nearestString(g, 30.0f));   // far below
 }
 
+static void test_flat_spelling() {
+    TEST_ASSERT_EQUAL_STRING("D#", tuning::nameOf(63));
+    TEST_ASSERT_EQUAL_STRING("Eb", tuning::nameOf(63, true));
+    TEST_ASSERT_EQUAL_STRING("Bb", tuning::nameOf(58, true));
+    TEST_ASSERT_EQUAL_STRING("E", tuning::nameOf(64, true));  // naturals unchanged
+}
+
+static void test_eb_standard_is_written_with_flats() {
+    using tuning::Instrument;
+    const char* expected[] = {"Eb", "Ab", "Db", "Gb", "Bb", "Eb"};
+    for (Instrument inst : {Instrument::Guitar, Instrument::Bass}) {
+        for (size_t i = 0; i < tuning::presetCount(inst); i++) {
+            const tuning::Preset& p = tuning::preset(inst, i);
+            // Only Eb standard uses flats; Open D keeps its F#.
+            TEST_ASSERT_EQUAL_MESSAGE(strcmp(p.name, "Eb Standard") == 0, p.flats, p.name);
+            if (!p.flats) continue;
+            for (size_t s = 0; s < p.count; s++) {
+                TEST_ASSERT_EQUAL_STRING(expected[s], tuning::nameOf(p.strings[s], p.flats));
+            }
+        }
+    }
+}
+
 void setUp() {}
 void tearDown() {}
 
@@ -118,5 +141,7 @@ int main() {
     RUN_TEST(test_presets_are_well_formed);
     RUN_TEST(test_out_of_range_preset_index_falls_back);
     RUN_TEST(test_nearest_string);
+    RUN_TEST(test_flat_spelling);
+    RUN_TEST(test_eb_standard_is_written_with_flats);
     return UNITY_END();
 }

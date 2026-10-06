@@ -18,8 +18,9 @@ Note fromHz(float hz, float a4 = 440.0f);
 // Frequency of a MIDI note.
 float hzOf(int midi, float a4 = 440.0f);
 
-// Note name of a MIDI note, without octave.
-const char* nameOf(int midi);
+// Note name of a MIDI note, without octave: sharps ("D#") by default, or
+// flats ("Eb") for tunings that are written with flats.
+const char* nameOf(int midi, bool flats = false);
 
 // Scientific pitch octave of a MIDI note.
 int octaveOf(int midi);
@@ -35,6 +36,7 @@ struct Preset {
     const char* shortName;  // for the tuner header ("E STD")
     size_t count;
     int strings[MAX_STRINGS];  // MIDI notes, lowest string first
+    bool flats;                // spell notes with flats (Eb standard)
 };
 
 size_t presetCount(Instrument instrument);

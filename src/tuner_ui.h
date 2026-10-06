@@ -27,6 +27,7 @@ struct Target {
     int midi = 0;        // note being tuned to
     float cents = 0;     // offset from it (can exceed +-50 with a preset)
     bool inTune = false;
+    bool flats = false;  // spell the note with flats (the preset is written that way)
 };
 Target targetFor(const tracker::Reading& reading, const tuning::Preset* preset);
 

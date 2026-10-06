@@ -64,19 +64,19 @@ void drawNote(M5Canvas& c, const tracker::Reading& r, const Target& t) {
         ink = theme::bg();
     }
 
-    const char* name = showing ? tuning::nameOf(t.midi) : "-";
-    const bool sharp = name[1] == '#';
+    const char* name = showing ? tuning::nameOf(t.midi, t.flats) : "-";
+    const char accidental = name[1];  // '#', 'b' or none
 
     // Letter: 6x8 font at 7x = 42x56.
     c.setTextColor(ink);
     c.setTextDatum(top_left);
     c.setTextSize(7);
-    const int letterX = NOTE_X + (sharp ? 8 : 18);
+    const int letterX = NOTE_X + (accidental ? 8 : 18);
     c.drawString(String(name[0]), letterX, NOTE_Y + 3);
 
     if (showing) {
         c.setTextSize(3);
-        if (sharp) c.drawString("#", letterX + 44, NOTE_Y + 4);
+        if (accidental) c.drawString(String(accidental), letterX + 44, NOTE_Y + 4);
         c.setTextSize(2);
         c.drawString(String(tuning::octaveOf(t.midi)), letterX + 46, NOTE_Y + 42);
     }
@@ -174,11 +174,10 @@ void drawStrings(M5Canvas& c, const tracker::Reading& r, const Target& t, const 
             c.drawRoundRect(x + 2, STRINGS_Y, cellW - 4, STRINGS_H - 4, 3, inkFor(r));
             ink = inkFor(r);
         }
-        // A repeated note name (the high E on guitar) is written lowercase.
-        String name = tuning::nameOf(p.strings[i]);
-        for (size_t j = 0; j < i; j++) {
-            if (name == tuning::nameOf(p.strings[j])) name.toLowerCase();
-        }
+        // The top string is written lowercase when it shares the bottom
+        // string's name (the high e in E A D G B e).
+        String name = tuning::nameOf(p.strings[i], p.flats);
+        if (i == p.count - 1 && name == tuning::nameOf(p.strings[0], p.flats)) name.toLowerCase();
         c.setTextColor(ink);
         c.drawString(name, x + cellW / 2, STRINGS_Y + (STRINGS_H - 4) / 2);
         if (s.tunedStrings & (1u << i)) c.fillCircle(x + cellW / 2, STRINGS_Y + STRINGS_H - 1, 1, theme::accent());
@@ -200,6 +199,7 @@ Target targetFor(const tracker::Reading& r, const tuning::Preset* preset) {
     t.cents = r.cents;
     t.inTune = r.state == State::Live && r.inTune;
     if (!preset || r.state == State::Idle) return t;
+    t.flats = preset->flats;
 
     const float exact = r.midi + r.cents / 100;
     t.string = tuning::nearestString(*preset, exact);

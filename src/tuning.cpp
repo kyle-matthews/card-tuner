@@ -4,9 +4,10 @@
 
 namespace tuning {
 
-static const char* const NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+static const char* const SHARP_NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+static const char* const FLAT_NAMES[12] = {"C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"};
 
-const char* nameOf(int midi) { return NAMES[((midi % 12) + 12) % 12]; }
+const char* nameOf(int midi, bool flats) { return (flats ? FLAT_NAMES : SHARP_NAMES)[((midi % 12) + 12) % 12]; }
 
 // Integer division rounds toward zero; floor so MIDI 0..11 is octave -1.
 int octaveOf(int midi) { return (int)floorf(midi / 12.0f) - 1; }
@@ -29,7 +30,7 @@ Note fromHz(float hz, float a4) {
 static const Preset GUITAR[] = {
     {"E Standard", "E STD", 6, {40, 45, 50, 55, 59, 64}},
     {"Drop D", "DROP D", 6, {38, 45, 50, 55, 59, 64}},
-    {"Eb Standard", "Eb STD", 6, {39, 44, 49, 54, 58, 63}},
+    {"Eb Standard", "Eb STD", 6, {39, 44, 49, 54, 58, 63}, true},
     {"D Standard", "D STD", 6, {38, 43, 48, 53, 57, 62}},
     {"Drop C", "DROP C", 6, {36, 43, 48, 53, 57, 62}},
     {"DADGAD", "DADGAD", 6, {38, 45, 50, 55, 57, 62}},
@@ -41,7 +42,7 @@ static const Preset GUITAR[] = {
 static const Preset BASS[] = {
     {"E Standard", "E STD", 4, {28, 33, 38, 43}},
     {"Drop D", "DROP D", 4, {26, 33, 38, 43}},
-    {"Eb Standard", "Eb STD", 4, {27, 32, 37, 42}},
+    {"Eb Standard", "Eb STD", 4, {27, 32, 37, 42}, true},
     {"D Standard", "D STD", 4, {26, 31, 36, 41}},
     {"5-string BEADG", "5 STR", 5, {23, 28, 33, 38, 43}},
     {"6-string BEADGC", "6 STR", 6, {23, 28, 33, 38, 43, 48}},
