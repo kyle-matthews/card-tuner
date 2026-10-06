@@ -6,6 +6,7 @@
 #pragma once
 #include <stdint.h>
 
+#include "theme.h"
 #include "tuning.h"
 
 namespace settings {
@@ -14,7 +15,7 @@ constexpr int A4_MIN = 430;
 constexpr int A4_MAX = 450;
 
 struct Settings {
-    uint8_t accent = 0;          // theme::ACCENTS index
+    uint8_t accent = theme::DEFAULT_ACCENT;  // theme::ACCENTS index
     uint16_t a4 = 440;           // Hz
     uint8_t instrument = 0;      // tuning::Instrument
     uint8_t guitarPreset = 0;    // tuning::preset index, remembered per instrument

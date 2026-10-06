@@ -25,7 +25,7 @@ uint32_t changedAt = 0;
 
 // Repair anything out of range (e.g. a preset list that got shorter).
 void sanitise(Settings& s) {
-    if (s.accent >= theme::ACCENT_COUNT) s.accent = 0;
+    if (s.accent >= theme::ACCENT_COUNT) s.accent = theme::DEFAULT_ACCENT;
     if (s.a4 < A4_MIN || s.a4 > A4_MAX) s.a4 = 440;
     if (s.instrument > 1) s.instrument = 0;
     if (s.guitarPreset >= tuning::presetCount(tuning::Instrument::Guitar)) s.guitarPreset = 0;

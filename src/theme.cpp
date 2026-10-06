@@ -23,7 +23,7 @@ uint16_t scaled(const Accent& a, unsigned percent) {
 }
 
 struct Init {
-    Init() { setAccent(0); }
+    Init() { setAccent(DEFAULT_ACCENT); }
 } init;
 
 }  // namespace

@@ -14,6 +14,7 @@ struct Accent {
 
 extern const Accent ACCENTS[];
 extern const size_t ACCENT_COUNT;
+constexpr size_t DEFAULT_ACCENT = 1;  // Amber
 
 void setAccent(size_t index);
 size_t accentIndex();

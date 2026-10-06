@@ -8,7 +8,8 @@
 // tools/capture.py.
 // Serial: `l` toggles a per-frame detector log, `s` sends a screenshot
 // (tools/screenshot.py), `d` cycles demo readings, `S` opens settings, `H`
-// replays the splash; any other character acts as that key on the keyboard.
+// replays the splash, `R` resets settings to defaults; any other character
+// acts as that key on the keyboard.
 
 #include <M5Cardputer.h>
 #include <math.h>
@@ -163,11 +164,11 @@ static tracker::Reading reading(tracker::State state, float hz, int midi, float 
 static tracker::Reading demoReading() {
     using tracker::State;
     switch (demoIndex) {
-        case 1: return reading(State::Live, 82.45f, 40, 1.0f, true);     // E2 in tune
-        case 2: return reading(State::Live, 108.0f, 45, -31.8f, false);  // A2 flat
-        case 3: return reading(State::Live, 141.0f, 49, 30.0f, false);   // D3 string, way flat
-        case 4: return reading(State::Live, 116.5f, 46, -0.6f, false);   // A#2 settling
-        case 5: return reading(State::Held, 55.1f, 33, 3.1f, false);     // A1 held
+        case 1: return reading(State::Live, 82.45f, 40, 1.0f, true);     // low E in tune
+        case 2: return reading(State::Live, 108.0f, 45, -31.8f, false);  // A string flat
+        case 3: return reading(State::Live, 141.0f, 49, 30.0f, false);   // D string, way flat
+        case 4: return reading(State::Live, 197.6f, 55, 14.0f, false);   // G string sharp
+        case 5: return reading(State::Held, 247.2f, 59, 2.0f, false);    // B string, held
         default: return tracker::Reading();
     }
 }
@@ -260,6 +261,11 @@ static void handleSerial(char c) {
             break;
         case 'H':
             splash();
+            break;
+        case 'R':  // reset all settings to defaults
+            settings::get() = settings::Settings();
+            settingsChanged();
+            showToast("Defaults");
             break;
         default:
             handleKey(c);
