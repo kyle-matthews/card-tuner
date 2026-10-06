@@ -39,6 +39,8 @@ const char* const BOTTOM[SIZE - FACE_TOP - FACE_ROWS] = {
 
 using Face = const char* const[FACE_ROWS];
 
+// Everyday faces have a :3 mouth; the worried, startled and happy faces keep
+// their own.
 Face NEUTRAL = {
     "X......................X",
     "X......................X",
@@ -46,8 +48,8 @@ Face NEUTRAL = {
     "X.....XX........XX.....X",
     "X.....XX........XX.....X",
     "X+++.......XX.......+++X",
-    "X.........X..X.........X",
-    "X+++.......XX.......+++X",
+    "X.......X..XX..X.......X",
+    "X+++.....XX..XX.....+++X",
     "X......................X",
 };
 
@@ -58,8 +60,8 @@ Face BLINK = {
     "X....XXXX......XXXX....X",
     "X......................X",
     "X+++.......XX.......+++X",
-    "X.........X..X.........X",
-    "X+++.......XX.......+++X",
+    "X.......X..XX..X.......X",
+    "X+++.....XX..XX.....+++X",
     "X......................X",
 };
 
@@ -82,8 +84,8 @@ Face CONTENT = {  // u u
     "X....X..X......X..X....X",
     "X.....XX........XX.....X",
     "X+++.......XX.......+++X",
-    "X.........X..X.........X",
-    "X+++.......XX.......+++X",
+    "X.......X..XX..X.......X",
+    "X+++.....XX..XX.....+++X",
     "X......................X",
 };
 
