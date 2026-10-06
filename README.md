@@ -21,14 +21,38 @@ It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or solde
 
 ## Meet note#
 
-| | |
-|---|---|
-| ![note# is happy and sparkling when the string is in tune](docs/images/in-tune.png) | ![note# looks worried towards the flat side](docs/images/flat.png) |
-| **In tune:** the note box and centre zone fill solid, the string is ticked off in the row below, and note# bounces with sparkles. | **Flat:** note# leans and looks worriedly towards the needle. |
-| ![note# is startled; the tuner says tune up](docs/images/tune-up.png) | ![note# looks worried towards the sharp side](docs/images/sharp.png) |
-| **Way off:** more than 50 cents from the string, note# is startled and the tuner tells you which way to turn. | **Sharp:** the same worried look, the other way. |
-| ![The last reading held, dimmed, after the note fades](docs/images/held.png) | ![note# says hi in a speech bubble](docs/images/say-hi.png) |
-| **Held:** when a note fades, its last reading stays on screen, dimmed, for a moment. | **Say hi:** press `n` and note# says something. |
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/in-tune.png" alt="note# is happy and sparkling when the string is in tune" width="400"><br>
+      <b>In tune:</b> the note box and centre zone fill solid, the string is ticked off in the row below, and note# bounces with sparkles.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/flat.png" alt="note# looks worried towards the flat side" width="400"><br>
+      <b>Flat:</b> note# leans and looks worriedly towards the needle.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/tune-up.png" alt="note# is startled; the tuner says tune up" width="400"><br>
+      <b>Way off:</b> more than 50 cents from the string, note# is startled and the tuner tells you which way to turn.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/sharp.png" alt="note# looks worried towards the sharp side" width="400"><br>
+      <b>Sharp:</b> the same worried look, the other way.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/held.png" alt="The last reading held, dimmed, after the note fades" width="400"><br>
+      <b>Held:</b> when a note fades, its last reading stays on screen, dimmed, for a moment.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/say-hi.png" alt="note# says hi in a speech bubble" width="400"><br>
+      <b>Say hi:</b> press <code>n</code> and note# says something.
+    </td>
+  </tr>
+</table>
 
 Leave the tuner quiet for a few seconds and note# falls asleep.
 
@@ -53,11 +77,11 @@ With a preset, the big note is the string you're nearest to, and the cents are m
 **Guitar:** E standard, Drop D, Eb standard, D standard, Drop C, DADGAD, Open G, Open D, 7-string.
 **Bass:** E standard, Drop D, Eb standard, D standard, 5-string BEADG, 6-string BEADGC.
 
-![Bass 5-string preset, with note# asleep](docs/images/asleep-bass.png)
+<img src="docs/images/asleep-bass.png" alt="Bass 5-string preset, with note# asleep" width="400">
 
 ### Settings
 
-![Settings screen](docs/images/settings.png)
+<img src="docs/images/settings.png" alt="Settings screen" width="400">
 
 `;` / `.` (↑ / ↓) choose a row, `,` / `/` (← / →) or Enter change it, Esc or `s` to go back. Colour previews live as you change it. Everything is saved to flash.
 
