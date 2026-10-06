@@ -1,6 +1,7 @@
 #include "cat.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "theme.h"
 
@@ -262,15 +263,52 @@ void draw(M5Canvas& c, int x, int y, int scale, Mood m, uint32_t nowMs) {
 
 void say(const char* text, uint32_t nowMs) {
     bubbleText = text;
-    bubbleUntilMs = nowMs + 1500;
+    // Long enough to read: 1.5 s, plus a little per character.
+    bubbleUntilMs = nowMs + 1500 + 45 * strlen(text);
 }
 
 void drawBubble(M5Canvas& c, int catX, int catY, int scale, uint32_t nowMs) {
     if (!bubbleText || nowMs >= bubbleUntilMs) return;
     c.setFont(&fonts::Font0);
     c.setTextSize(1);
-    const int w = c.textWidth(bubbleText) + 10, h = 14;
+
+    // Word-wrap at most MAX_CHARS per line, then rewrap as narrow as possible
+    // without adding a line, so the lines come out even ("Bassists are /
+    // people too" rather than "Bassists are people / too").
+    constexpr size_t MAX_CHARS = 22, MAX_LINES = 4, LINE_H = 10;
+    String lines[MAX_LINES];
+    size_t lineCount = 0;
+    auto wrap = [&](size_t width) {
+        lineCount = 0;
+        String word, line;
+        const String text = String(bubbleText) + " ";
+        for (size_t i = 0; i < text.length() && lineCount < MAX_LINES; i++) {
+            if (text[i] != ' ') {
+                word += text[i];
+                continue;
+            }
+            if (line.length() && line.length() + 1 + word.length() > width) {
+                lines[lineCount++] = line;
+                line = "";
+            }
+            line += line.length() ? " " + word : word;
+            word = "";
+        }
+        if (line.length() && lineCount < MAX_LINES) lines[lineCount++] = line;
+    };
+    wrap(MAX_CHARS);
+    const size_t fewest = lineCount;
+    for (size_t width = (strlen(bubbleText) + fewest - 1) / fewest; width < MAX_CHARS; width++) {
+        wrap(width);
+        if (lineCount <= fewest) break;
+    }
+    if (lineCount > fewest) wrap(MAX_CHARS);
+
+    int textW = 0;
+    for (size_t i = 0; i < lineCount; i++) textW = max(textW, (int)c.textWidth(lines[i]));
+    const int w = textW + 10, h = lineCount * LINE_H + 4;
     const int bx = catX + 24 * scale - 4, by = catY - 2 * scale;  // just right of the ears
+
     c.fillRoundRect(bx, by, w, h, 4, theme::bg());
     c.drawRoundRect(bx, by, w, h, 4, theme::accent());
     // Tail pointing down-left at note#'s head.
@@ -278,8 +316,8 @@ void drawBubble(M5Canvas& c, int catX, int catY, int scale, uint32_t nowMs) {
     c.drawLine(bx + 4, by + h - 1, bx + 2, by + h + 4, theme::accent());
     c.drawLine(bx + 10, by + h - 1, bx + 2, by + h + 4, theme::accent());
     c.setTextColor(theme::accent());
-    c.setTextDatum(middle_center);
-    c.drawString(bubbleText, bx + w / 2, by + h / 2);
+    c.setTextDatum(top_center);
+    for (size_t i = 0; i < lineCount; i++) c.drawString(lines[i], bx + w / 2, by + 3 + i * LINE_H);
 }
 
 }  // namespace cat

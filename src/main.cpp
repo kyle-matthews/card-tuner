@@ -244,9 +244,33 @@ static void handleTunerKey(char c) {
             screen = Screen::Settings;
             break;
         case 'n': {
-            static const char* const SAYINGS[] = {"hi!", "mrrp!", "nya~", "purr", "tune me!", "meow#"};
-            static size_t next = 0;
-            cat::say(SAYINGS[next++ % (sizeof(SAYINGS) / sizeof(SAYINGS[0]))], millis());
+            static const char* const SAYINGS[] = {
+                "hi!",
+                "mrrp!",
+                "Dare ya to play Stairway",
+                "Palm muting is rad",
+                "Bet you're glad you don't own a floating tremolo",
+                "That's not out of tune, that's jazz",
+                "Wonderwall? Again?",
+                "Change your strings. I can smell them.",
+                "One more pedal won't hurt",
+                "Turn it up to 11",
+                "Drop D: for when E is too much effort",
+                "Bassists are people too",
+                "Solos are just scales with attitude",
+                "Free Bird!",
+                "I'd tune too, but no thumbs",
+                "Less tuning, more shredding",
+            };
+            constexpr size_t COUNT = sizeof(SAYINGS) / sizeof(SAYINGS[0]);
+            // Random, but never the same one twice in a row.
+            static size_t last = COUNT;
+            size_t pick;
+            do {
+                pick = esp_random() % COUNT;
+            } while (pick == last);
+            last = pick;
+            cat::say(SAYINGS[pick], millis());
             break;
         }
         case 'r':
