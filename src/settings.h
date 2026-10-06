@@ -14,6 +14,16 @@ namespace settings {
 constexpr int A4_MIN = 430;
 constexpr int A4_MAX = 450;
 
+// Turn the screen off after this long without a key press or a note.
+struct ScreenOffOption {
+    const char* label;
+    uint32_t ms;  // 0 = never
+};
+constexpr ScreenOffOption SCREEN_OFF_OPTIONS[] = {
+    {"Never", 0}, {"30 s", 30000}, {"1 min", 60000}, {"2 min", 120000}, {"5 min", 300000},
+};
+constexpr size_t SCREEN_OFF_COUNT = sizeof(SCREEN_OFF_OPTIONS) / sizeof(SCREEN_OFF_OPTIONS[0]);
+
 struct Settings {
     uint8_t accent = theme::DEFAULT_ACCENT;  // theme::ACCENTS index
     uint16_t a4 = 440;           // Hz
@@ -23,6 +33,9 @@ struct Settings {
     bool chromatic = false;      // ignore the preset and show any note
     uint8_t micGain = 7;         // ES8311 PGA step, 3 dB each
     bool showCat = true;
+    // New fields go at the end: older saved settings are shorter and simply
+    // leave them at their defaults.
+    uint8_t screenOff = 2;       // SCREEN_OFF_OPTIONS index
 
     tuning::Instrument inst() const { return (tuning::Instrument)instrument; }
     uint8_t& presetIndex() { return inst() == tuning::Instrument::Guitar ? guitarPreset : bassPreset; }

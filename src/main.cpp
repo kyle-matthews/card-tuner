@@ -50,6 +50,34 @@ static void showToast(const String& text) {
     toastUntil = millis() + TOAST_MS;
 }
 
+// ---- Screen off ---------------------------------------------------------------
+// The backlight is the biggest power draw, so the screen turns off after a
+// while with no key presses and no notes. The mic keeps listening: playing a
+// note, or pressing a key, turns it back on.
+
+static bool screenOn = true;
+static uint32_t lastActivityMs = 0;
+static uint8_t screenBrightness = 0;
+
+static void screenWake() {
+    lastActivityMs = millis();
+    if (screenOn) return;
+    screenOn = true;
+    M5Cardputer.Display.wakeup();
+    M5Cardputer.Display.setBrightness(screenBrightness);
+    Serial.println("screen on");
+}
+
+static void screenSleepIfIdle() {
+    const uint32_t timeout = settings::SCREEN_OFF_OPTIONS[settings::get().screenOff].ms;
+    if (!screenOn || !timeout || millis() - lastActivityMs < timeout) return;
+    screenOn = false;
+    screenBrightness = M5Cardputer.Display.getBrightness();
+    M5Cardputer.Display.setBrightness(0);
+    M5Cardputer.Display.sleep();
+    Serial.println("screen off");
+}
+
 // ---- Settings ---------------------------------------------------------------
 
 static const tuning::Preset* activePreset() {
@@ -107,6 +135,7 @@ static void analyse() {
     const pitch::Result raw = yin->detect(frame, len);
     detectMicros = micros() - t0;
     const tracker::Reading& shown = noteTracker.update(raw, millis());
+    if (shown.state == tracker::State::Live) screenWake();  // playing counts as activity
 
     const tuner_ui::Target target = tuner_ui::targetFor(shown, activePreset());
     if (target.inTune && target.string >= 0) tunedStrings |= 1u << target.string;
@@ -331,6 +360,7 @@ void setup() {
     if (!audio_in::begin()) Serial.println("mic failed to start");
     audio_in::setPgaStep(settings::get().micGain);
     if (settings::get().showCat) splash();
+    lastActivityMs = millis();
     nextFrameEnd = yin->frameSize();
     Serial.printf("card-tuner started: %s, A4 %u Hz\n", modeLabel().c_str(), settings::get().a4);
 }
@@ -340,18 +370,27 @@ void loop() {
     audio_in::poll();
 
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
-        const auto keys = M5Cardputer.Keyboard.keysState();
-        for (char c : keys.word) handleKey(c);
-        if (keys.enter) handleKey('\n');
+        const bool wasOn = screenOn;
+        screenWake();
+        if (wasOn) {  // the key that wakes the screen does nothing else
+            const auto keys = M5Cardputer.Keyboard.keysState();
+            for (char c : keys.word) handleKey(c);
+            if (keys.enter) handleKey('\n');
+        }
     }
-    while (Serial.available()) handleSerial(Serial.read());
+    while (Serial.available()) {
+        const char c = Serial.read();
+        if (c != 's' && c != 'l') screenWake();  // screenshots and logging don't wake it
+        handleSerial(c);
+    }
+    screenSleepIfIdle();
 
     debug_dump::service();
     settings::service();
     analyse();
 
     static uint32_t lastDraw = 0;
-    if (millis() - lastDraw >= 33) {
+    if (screenOn && millis() - lastDraw >= 33) {
         lastDraw = millis();
         if (screen == Screen::Settings) {
             settings_ui::draw(canvas);

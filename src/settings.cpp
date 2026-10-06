@@ -31,6 +31,7 @@ void sanitise(Settings& s) {
     if (s.guitarPreset >= tuning::presetCount(tuning::Instrument::Guitar)) s.guitarPreset = 0;
     if (s.bassPreset >= tuning::presetCount(tuning::Instrument::Bass)) s.bassPreset = 0;
     if (s.micGain > 10) s.micGain = 7;
+    if (s.screenOff >= SCREEN_OFF_COUNT) s.screenOff = Settings().screenOff;
 }
 
 }  // namespace
@@ -40,8 +41,11 @@ Settings& get() { return current; }
 void load() {
     Preferences prefs;
     if (!prefs.begin(NAMESPACE, true)) return;  // nothing saved yet: keep defaults
-    Stored stored;
-    if (prefs.getBytesLength(KEY) == sizeof(stored) && prefs.getBytes(KEY, &stored, sizeof(stored)) == sizeof(stored) &&
+    // Saved settings may be shorter than Settings (saved before a field was
+    // added); the missing fields keep their defaults.
+    Stored stored{VERSION, Settings()};
+    const size_t len = prefs.getBytesLength(KEY);
+    if (len > sizeof(stored.version) && len <= sizeof(stored) && prefs.getBytes(KEY, &stored, len) == len &&
         stored.version == VERSION) {
         current = stored.values;
         sanitise(current);

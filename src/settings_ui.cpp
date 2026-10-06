@@ -8,8 +8,8 @@ namespace settings_ui {
 
 namespace {
 
-enum Row { COLOUR, A4, INSTRUMENT, TUNING, MIC, CAT, ROW_COUNT };
-const char* const LABELS[ROW_COUNT] = {"Colour", "A4 pitch", "Instrument", "Tuning", "Mic gain", "note#"};
+enum Row { COLOUR, A4, INSTRUMENT, TUNING, MIC, CAT, SCREEN_OFF, ROW_COUNT };
+const char* const LABELS[ROW_COUNT] = {"Colour", "A4 pitch", "Instrument", "Tuning", "Mic gain", "note#", "Screen off"};
 
 int selected = 0;
 
@@ -24,6 +24,7 @@ String valueText(int row) {
         case TUNING: return s.chromatic ? String("Chromatic") : String(s.preset().name);
         case MIC: return String("+") + s.micGain * 3 + " dB";
         case CAT: return s.showCat ? "Shown" : "Hidden";
+        case SCREEN_OFF: return settings::SCREEN_OFF_OPTIONS[s.screenOff].label;
     }
     return "";
 }
@@ -54,6 +55,9 @@ void step(int row, int dir) {
             break;
         case CAT:
             s.showCat = !s.showCat;
+            break;
+        case SCREEN_OFF:
+            s.screenOff = wrap(s.screenOff + dir, settings::SCREEN_OFF_COUNT);
             break;
     }
 }
@@ -94,7 +98,7 @@ void draw(M5Canvas& c) {
     c.drawString("SETTINGS", 6, 3);
     c.drawFastHLine(6, 13, 228, theme::faint());
 
-    constexpr int ROW_Y = 18, ROW_H = 16;
+    constexpr int ROW_Y = 17, ROW_H = 15;
     for (int row = 0; row < ROW_COUNT; row++) {
         const int y = ROW_Y + row * ROW_H;
         const bool sel = row == selected;

@@ -17,6 +17,7 @@ It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or solde
 - **Adjustable A4** reference (430–450 Hz)
 - **One-colour look:** black background with a single accent colour (Amber by default; also White, Phosphor, Cyan, Pink, Lavender and Red)
 - **note# the cat**, who reacts to how you're doing
+- **Screen turns off** after a minute with no notes or key presses, to save battery. Play a note or press a key to wake it
 - **Settings saved to flash**, so they survive a power cycle
 
 ## Meet note#
@@ -83,7 +84,7 @@ With a preset, the big note is the string you're nearest to, and the cents are m
 
 <img src="docs/images/settings.png" alt="Settings screen" width="400">
 
-`;` / `.` (↑ / ↓) choose a row, `,` / `/` (← / →) or Enter change it, Esc or `s` to go back. Colour previews live as you change it. Everything is saved to flash.
+`;` / `.` (↑ / ↓) choose a row, `,` / `/` (← / →) or Enter change it, Esc or `s` to go back. Colour previews live as you change it. **Screen off** sets how long the screen stays on without a note or key press (Never, 30 s, 1 min, 2 min or 5 min; the default is 1 min). Everything is saved to flash.
 
 ## How it works
 
