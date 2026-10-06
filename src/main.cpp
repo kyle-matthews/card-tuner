@@ -247,6 +247,9 @@ static void handleTunerKey(char c) {
             static const char* const SAYINGS[] = {
                 "hi!",
                 "mrrp!",
+                "purr",
+                "meow#",
+                "tune me!",
                 "Dare ya to play Stairway",
                 "Palm muting is rad",
                 "Bet you're glad you don't own a floating tremolo",
