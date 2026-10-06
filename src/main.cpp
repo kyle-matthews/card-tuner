@@ -4,15 +4,17 @@
 // hold, in-tune) -> tuner screen in one accent colour on black.
 //
 // Tuner keys: g/b guitar/bass, , / previous/next tuning, c chromatic,
-// -/= A4 pitch, s settings, r record a WAV for tools/capture.py.
+// -/= A4 pitch, s settings, n say hi to note#, r record a WAV for
+// tools/capture.py.
 // Serial: `l` toggles a per-frame detector log, `s` sends a screenshot
-// (tools/screenshot.py), `d` cycles demo readings, `S` opens settings; any
-// other character acts as that key on the keyboard.
+// (tools/screenshot.py), `d` cycles demo readings, `S` opens settings, `H`
+// replays the splash; any other character acts as that key on the keyboard.
 
 #include <M5Cardputer.h>
 #include <math.h>
 
 #include "audio_in.h"
+#include "cat.h"
 #include "debug_dump.h"
 #include "pitch.h"
 #include "settings.h"
@@ -211,6 +213,12 @@ static void handleTunerKey(char c) {
             settings_ui::open();
             screen = Screen::Settings;
             break;
+        case 'n': {
+            static const char* const SAYINGS[] = {"hi!", "mrrp!", "nya~", "purr", "tune me!", "meow#"};
+            static size_t next = 0;
+            cat::say(SAYINGS[next++ % (sizeof(SAYINGS) / sizeof(SAYINGS[0]))], millis());
+            break;
+        }
         case 'r':
             debug_dump::start();
             break;
@@ -234,6 +242,8 @@ static void handleKey(char c) {
     handleTunerKey(c);
 }
 
+static void splash();
+
 static void handleSerial(char c) {
     switch (c) {
         case 'l':
@@ -248,12 +258,48 @@ static void handleSerial(char c) {
         case 'S':
             handleKey('s');
             break;
+        case 'H':
+            splash();
+            break;
         default:
             handleKey(c);
     }
 }
 
 // ---- Main -------------------------------------------------------------------
+
+// Boot splash: note# wakes up and says hi. Any key skips it.
+static void splash() {
+    constexpr uint32_t DURATION_MS = 2000, HI_AT_MS = 600;
+    constexpr int SCALE = 3, CAT_X = (240 - 24 * SCALE) / 2, CAT_Y = 8;
+    const uint32_t start = millis();
+    bool saidHi = false;
+    while (millis() - start < DURATION_MS) {
+        const uint32_t now = millis();
+        if (!saidHi && now - start >= HI_AT_MS) {
+            cat::say("hi!", now);
+            saidHi = true;
+        }
+        canvas.fillSprite(theme::bg());
+        cat::draw(canvas, CAT_X, CAT_Y, SCALE, saidHi ? cat::Mood::Happy : cat::Mood::Idle, now);
+        cat::drawBubble(canvas, CAT_X, CAT_Y, SCALE, now);
+        canvas.setFont(&fonts::Font0);
+        canvas.setTextSize(2);
+        canvas.setTextDatum(bottom_center);
+        canvas.setTextColor(saidHi ? theme::accent() : theme::dim());
+        canvas.drawString("note# says hi", 120, 126);
+        canvas.pushSprite(0, 0);
+
+        M5Cardputer.update();
+        if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) break;
+        if (Serial.available()) {
+            // A serial `s` screenshots the splash; anything else skips it.
+            if (Serial.read() != 's') break;
+            debug_dump::screenshot(canvas.getBuffer(), canvas.width(), canvas.height());
+        }
+        delay(16);
+    }
+}
 
 void setup() {
     auto cfg = M5.config();
@@ -273,8 +319,12 @@ void setup() {
     selfTest();
 
     settings::load();
-    if (!audio_in::begin()) Serial.println("mic failed to start");
     applySettings();
+    // The mic warms up for about a second after power-up, so start it before
+    // the splash and let the splash cover the wait.
+    if (!audio_in::begin()) Serial.println("mic failed to start");
+    audio_in::setPgaStep(settings::get().micGain);
+    if (settings::get().showCat) splash();
     nextFrameEnd = yin->frameSize();
     Serial.printf("card-tuner started: %s, A4 %u Hz\n", modeLabel().c_str(), settings::get().a4);
 }

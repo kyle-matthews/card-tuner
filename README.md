@@ -11,7 +11,7 @@ It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or solde
 - **Tuning presets** (E standard, Drop D, DADGAD, 5/6-string bass, ...) showing the target string
 - **Adjustable A4** reference (432–446 Hz)
 - **Monochrome look:** black background with one accent colour, chosen in Settings (white, amber, phosphor green, cyan, pink, lavender, red)
-- **note# the cat:** sleeps in silence, perks up when you play, frets when you're flat or sharp, and is delighted when you're in tune
+- **note# the cat:** sleeps in silence, perks up when you play, looks worriedly towards the needle when you're flat or sharp, is startled when you're way off, and bounces with sparkles when you're in tune. Says hi at boot and whenever you press `n`
 
 ## How it works
 
@@ -70,6 +70,7 @@ g++ -O2 -std=c++17 -Isrc tools/pitch_scan.cpp src/pitch.cpp -o .pio/pitch_scan
 | `c` | Chromatic mode (any note, no target string) |
 | `-` / `=` | A4 pitch down / up (430–450 Hz) |
 | `s` | Settings |
+| `n` | Say hi to note# |
 | `r` | Record 3 s of audio for `tools/capture.py` (development) |
 
 With a preset, the tuner aims at the nearest string: the big note is that string, the cents are measured against it ("tune up" / "tune down" when more than 50 cents out), and the string row along the bottom boxes it. Strings that have been in tune get a dot.
@@ -82,7 +83,7 @@ With a preset, the tuner aims at the nearest string: the big note is that string
 
 ### Over serial (development)
 
-`l` toggles a per-frame detector log, `s` sends a screenshot (`tools/screenshot.py`), `d` cycles demo readings, `S` opens settings. Any other character acts as that key on the keyboard.
+`l` toggles a per-frame detector log, `s` sends a screenshot (`tools/screenshot.py`), `d` cycles demo readings, `S` opens settings, `H` replays the splash. Any other character acts as that key on the keyboard.
 
 ## Project layout
 
@@ -118,5 +119,5 @@ recordings/         test audio captured on the device
 - [x] **M3** Tuner v1 on device: note, Hz, cents (detector runs in 5 ms per frame using ESP-DSP SIMD)
 - [x] **M4** Tuner UI: theme system, needle, in-tune inversion, smoothing (median + easing), outlier rejection, hold
 - [x] **M5** Settings screen (accent colour, A4, instrument, preset, mic gain) saved to NVS; tuning presets with target string
-- [ ] **M6** note# the cat: 1-bit pixel sprites reacting to tuning state, splash screen
+- [x] **M6** note# the cat: 1-bit pixel sprites reacting to tuning state, splash screen
 - [ ] *Maybe later:* reference tone playback through the speaker/headphones

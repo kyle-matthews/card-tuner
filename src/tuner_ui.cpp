@@ -2,6 +2,7 @@
 
 #include <math.h>
 
+#include "cat.h"
 #include "theme.h"
 
 namespace tuner_ui {
@@ -53,14 +54,6 @@ void drawHeader(M5Canvas& c, const Status& s) {
     }
 }
 
-// Placeholder until note# moves in (Milestone 6).
-void drawCatSpot(M5Canvas& c) {
-    c.drawRoundRect(CAT_X, CAT_Y, CAT_SIZE, CAT_SIZE, 6, theme::faint());
-    c.setTextSize(1);
-    c.setTextColor(theme::faint());
-    c.setTextDatum(middle_center);
-    c.drawString("note#", CAT_X + CAT_SIZE / 2, CAT_Y + CAT_SIZE / 2);
-}
 
 void drawNote(M5Canvas& c, const tracker::Reading& r, const Target& t) {
     const bool showing = r.state != State::Idle;
@@ -222,7 +215,11 @@ void draw(M5Canvas& canvas, const tracker::Reading& reading, const Status& statu
     canvas.fillSprite(theme::bg());
     canvas.setFont(&fonts::Font0);
     drawHeader(canvas, status);
-    if (status.showCat) drawCatSpot(canvas);
+    const uint32_t now = millis();
+    if (status.showCat) {
+        cat::update(reading.state, target.cents, target.inTune, now);
+        cat::draw(canvas, CAT_X, CAT_Y, CAT_SIZE / 24, now);
+    }
     drawNote(canvas, reading, target);
     drawInfo(canvas, reading, target);
     drawMeter(canvas, reading, target);
@@ -231,6 +228,7 @@ void draw(M5Canvas& canvas, const tracker::Reading& reading, const Status& statu
     } else {
         drawFooter(canvas, status);
     }
+    if (status.showCat) cat::drawBubble(canvas, CAT_X, CAT_Y, CAT_SIZE / 24, now);  // on top of everything
 }
 
 }  // namespace tuner_ui
