@@ -40,6 +40,25 @@ uint16_t inkFor(const tracker::Reading& r) {
     }
 }
 
+// Battery icon and percentage, right-aligned at `right`. Dim normally, full
+// colour when low, blinking when nearly empty.
+void drawBattery(M5Canvas& c, int right, int level) {
+    if (level < 0) return;  // unknown
+    if (level <= 10 && (millis() / 500) % 2) return;
+    const uint16_t ink = level <= 15 ? theme::accent() : theme::dim();
+
+    constexpr int W = 13, H = 7, Y = 3;
+    const int x = right - W - 2;
+    c.drawRect(x, Y, W, H, ink);
+    c.fillRect(x + W, Y + 2, 2, H - 4, ink);  // terminal nub
+    const int fill = (W - 4) * level / 100;
+    if (fill > 0) c.fillRect(x + 2, Y + 2, fill, H - 4, ink);
+
+    c.setTextColor(ink);
+    c.setTextDatum(top_right);
+    c.drawString(String(level) + "%", x - 3, Y);
+}
+
 void drawHeader(M5Canvas& c, const Status& s) {
     c.setTextSize(1);
     c.setTextColor(theme::dim());
@@ -50,7 +69,9 @@ void drawHeader(M5Canvas& c, const Status& s) {
         c.setTextColor(theme::accent());
         c.drawString(s.toast, 234, 3);
     } else {
-        c.drawString(String("A") + (int)lroundf(s.a4), 234, 3);
+        const String a4 = String("A") + (int)lroundf(s.a4);
+        c.drawString(a4, 234, 3);
+        drawBattery(c, 234 - c.textWidth(a4) - 6, s.battery);
     }
 }
 

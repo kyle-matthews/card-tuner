@@ -50,6 +50,22 @@ static void showToast(const String& text) {
     toastUntil = millis() + TOAST_MS;
 }
 
+// ---- Battery --------------------------------------------------------------------
+// The ADV measures the battery with a plain ADC (no charge controller), so the
+// reading is noisy and can't tell whether it's charging: sample every few
+// seconds and smooth it.
+
+static int batteryPercent() {
+    static float smoothed = -1;
+    static uint32_t lastReadMs = 0;
+    if (smoothed < 0 || millis() - lastReadMs >= 5000) {
+        lastReadMs = millis();
+        const int32_t level = M5.Power.getBatteryLevel();
+        if (level >= 0 && level <= 100) smoothed = smoothed < 0 ? level : smoothed + 0.3f * (level - smoothed);
+    }
+    return smoothed < 0 ? -1 : (int)lroundf(smoothed);
+}
+
 // ---- Screen off ---------------------------------------------------------------
 // The backlight is the biggest power draw, so the screen turns off after a
 // while with no key presses and no notes. The mic keeps listening: playing a
@@ -318,7 +334,8 @@ static void handleSerial(char c) {
         case 'H':
             splash();
             break;
-        case 'R':  // reset all settings to defaults
+        case 'R':  // reset all settings to defaults (and leave demo mode)
+            demoIndex = 0;
             settings::get() = settings::Settings();
             settingsChanged();
             showToast("Defaults");
@@ -429,6 +446,7 @@ void loop() {
             status.preset = activePreset();
             status.tunedStrings = tunedStrings;
             status.showCat = s.showCat;
+            status.battery = batteryPercent();
             if (millis() < toastUntil) status.toast = toast;
             status.footerActive = debug_dump::active();
             status.footer = debug_dump::status().length() ? debug_dump::status() : String("s settings  c chromatic");

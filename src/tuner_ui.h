@@ -18,6 +18,7 @@ struct Status {
     String toast;                            // brief message top right, empty for none
     String footer;                           // bottom line in chromatic mode
     bool footerActive = false;               // highlight the footer (e.g. while recording)
+    int battery = -1;                        // percent, -1 if unknown
 };
 
 // What the tuner is aiming at for this reading: the nearest preset string,

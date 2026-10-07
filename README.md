@@ -17,6 +17,7 @@ It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or solde
 - **Adjustable A4** reference (430–450 Hz)
 - **One-colour look:** black background with a single accent colour (Amber by default; also White, Phosphor, Cyan, Pink, Lavender and Red)
 - **note# the cat**, who reacts to how you're doing
+- **Battery level** in the header (it can't show charging: the ADV only measures battery voltage)
 - **Screen turns off** after a minute with no notes or key presses, to save battery. Play a note or press a key to wake it
 - **Settings saved to flash**, so they survive a power cycle
 
@@ -140,7 +141,7 @@ g++ -O2 -std=c++17 -Isrc tools/pitch_scan.cpp src/pitch.cpp -o .pio/pitch_scan
 ~/.platformio/penv/Scripts/python.exe tools/screenshot.py COM5 docs/images/example.png --scale 2
 ```
 
-Other serial commands: `l` toggles a per-frame detector log, `d` cycles demo readings (to screenshot each state without live audio), `S` opens settings, `H` replays the splash, and `R` resets settings to defaults. Any other character acts as that key on the keyboard.
+Other serial commands: `l` toggles a per-frame detector log, `d` cycles demo readings (to screenshot each state without live audio), `S` opens settings, `H` replays the splash, and `R` resets settings to defaults and leaves demo mode. Any other character acts as that key on the keyboard.
 
 ## Project layout
 
