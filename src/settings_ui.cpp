@@ -8,8 +8,9 @@ namespace settings_ui {
 
 namespace {
 
-enum Row { COLOUR, A4, INSTRUMENT, TUNING, MIC, CAT, SCREEN_OFF, ROW_COUNT };
-const char* const LABELS[ROW_COUNT] = {"Colour", "A4 pitch", "Instrument", "Tuning", "Mic gain", "note#", "Screen off"};
+enum Row { COLOUR, THEME, A4, INSTRUMENT, TUNING, MIC, CAT, SCREEN_OFF, ROW_COUNT };
+const char* const LABELS[ROW_COUNT] = {"Colour",   "Theme", "A4 pitch", "Instrument",
+                                       "Tuning",   "Mic gain", "note#", "Screen off"};
 
 int selected = 0;
 
@@ -19,6 +20,7 @@ String valueText(int row) {
     const settings::Settings& s = settings::get();
     switch (row) {
         case COLOUR: return theme::ACCENTS[s.accent].name;
+        case THEME: return s.light ? "Light" : "Dark";
         case A4: return String(s.a4) + " Hz";
         case INSTRUMENT: return tuning::instrumentName(s.inst());
         case TUNING: return s.chromatic ? String("Chromatic") : String(s.preset().name);
@@ -59,6 +61,9 @@ void step(int row, int dir) {
         case SCREEN_OFF:
             s.screenOff = wrap(s.screenOff + dir, settings::SCREEN_OFF_COUNT);
             break;
+        case THEME:
+            s.light = !s.light;
+            break;
     }
 }
 
@@ -98,7 +103,7 @@ void draw(M5Canvas& c) {
     c.drawString("SETTINGS", 6, 3);
     c.drawFastHLine(6, 13, 228, theme::faint());
 
-    constexpr int ROW_Y = 17, ROW_H = 15;
+    constexpr int ROW_Y = 16, ROW_H = 13;
     for (int row = 0; row < ROW_COUNT; row++) {
         const int y = ROW_Y + row * ROW_H;
         const bool sel = row == selected;

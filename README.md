@@ -15,11 +15,18 @@ It uses the Cardputer ADV's built-in mic, so nothing needs to be bought or solde
 - **Note, cents and frequency** readout with a needle meter that is stretched near the centre for fine tuning
 - **Tuning presets** for guitar and bass. The tuner aims at the nearest string and says "tune up" or "tune down" when you're way off
 - **Adjustable A4** reference (430–450 Hz)
-- **One-colour look:** black background with a single accent colour (Amber by default; also White, Phosphor, Cyan, Pink, Lavender and Red)
+- **One-colour look:** black background with a single accent colour (Amber by default; also White, Phosphor, Cyan, Pink, Lavender and Red), or a **light mode** that inverts it: an accent background with black ink
 - **note# the cat**, who reacts to how you're doing
 - **Battery level** in the header (it can't show charging: the ADV only measures battery voltage)
 - **Screen turns off** after a minute with no notes or key presses, to save battery. Play a note or press a key to wake it
 - **Settings saved to flash**, so they survive a power cycle
+
+### Light mode
+
+<p>
+  <img src="docs/images/light-amber.png" alt="Light mode in Amber: in tune" width="49%">
+  <img src="docs/images/light-white.png" alt="Light mode in White: sharp" width="49%">
+</p>
 
 ## Meet note#
 
@@ -69,6 +76,7 @@ Leave the tuner quiet for a few seconds and note# falls asleep.
 | `c` | Chromatic mode (any note, no target string) |
 | `-` / `=` | A4 pitch down / up |
 | `s` | Settings |
+| `i` | Light / dark mode |
 | `n` | Say hi to note# |
 | `r` | Record 3 s of audio for `tools/capture.py` (development) |
 
@@ -85,7 +93,7 @@ With a preset, the big note is the string you're nearest to, and the cents are m
 
 <img src="docs/images/settings.png" alt="Settings screen" width="400">
 
-`;` / `.` (↑ / ↓) choose a row, `,` / `/` (← / →) or Enter change it, Esc or `s` to go back. Colour previews live as you change it. **Screen off** sets how long the screen stays on without a note or key press (Never, 30 s, 1 min, 2 min or 5 min; the default is 1 min). Everything is saved to flash.
+`;` / `.` (↑ / ↓) choose a row, `,` / `/` (← / →) or Enter change it, Esc or `s` to go back. Colour and Theme (Dark or Light) preview live as you change them. **Screen off** sets how long the screen stays on without a note or key press (Never, 30 s, 1 min, 2 min or 5 min; the default is 1 min). Everything is saved to flash.
 
 ## How it works
 

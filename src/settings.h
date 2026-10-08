@@ -36,6 +36,7 @@ struct Settings {
     // New fields go at the end: older saved settings are shorter and simply
     // leave them at their defaults.
     uint8_t screenOff = 2;       // SCREEN_OFF_OPTIONS index
+    bool light = false;          // light mode: the colour scheme inverted
 
     tuning::Instrument inst() const { return (tuning::Instrument)instrument; }
     uint8_t& presetIndex() { return inst() == tuning::Instrument::Guitar ? guitarPreset : bassPreset; }

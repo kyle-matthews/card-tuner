@@ -113,6 +113,7 @@ static String modeLabel() {
 static void applySettings() {
     const settings::Settings& s = settings::get();
     theme::setAccent(s.accent);
+    theme::setLight(s.light);
     noteTracker.setA4(s.a4);
     if (audio_in::pgaStep() != s.micGain) audio_in::setPgaStep(s.micGain);
 
@@ -246,6 +247,11 @@ static void handleTunerKey(char c) {
             s.chromatic = !s.chromatic;
             settingsChanged();
             showToast(s.chromatic ? "Chromatic" : s.preset().name);
+            break;
+        case 'i':  // invert: light / dark
+            s.light = !s.light;
+            settingsChanged(false);
+            showToast(s.light ? "Light" : "Dark");
             break;
         case '-':
         case '_':
